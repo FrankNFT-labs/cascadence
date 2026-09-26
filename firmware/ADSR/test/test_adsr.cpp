@@ -40,6 +40,9 @@ const int RELEASE_POT = 3;
 // A single pass of loop() that reads the gate more often than this is stuck.
 const long MAX_GATE_READS_PER_PASS = 100000;
 
+// Passes that let the firmware's pot scan visit every pot at least once.
+const int PASSES_TO_NOTICE_A_CONTROL = 8;
+
 struct TestFailure {
   std::string message;
 };
@@ -122,6 +125,16 @@ void run_passes(int count) {
 void boot_with_all_knobs_at(int position) {
   for (int &reading : board.pot) reading = position;
   setup();
+}
+
+void turn_knob(int pot, int position) {
+  board.pot[pot] = position;
+  run_passes(PASSES_TO_NOTICE_A_CONTROL);
+}
+
+void select_envelope(int envelope) {
+  board.toggle_on_b = envelope == B;
+  run_passes(PASSES_TO_NOTICE_A_CONTROL);
 }
 
 // Holds the gate high for `reads` reads of the gate input, then lets it fall.
@@ -232,6 +245,47 @@ TEST(released_gate_returns_both_outputs_to_zero) {
   run_passes(2000);
   EXPECT_EQ(current_output(A), 0);
   EXPECT_EQ(current_output(B), 0);
+}
+
+// Parks the sustain knob at `position` while editing envelope A, then flips the
+// toggle to B without touching any knob. B was never edited, so it must keep
+// the sustain level it booted with.
+void check_toggle_flip_leaves_other_envelope_alone(int position) {
+  boot_with_all_knobs_at(512);
+  select_envelope(A);
+  turn_knob(SUSTAIN_POT, position);
+  select_envelope(B);
+  hold_gate_for(400);
+  EXPECT_EQ(output_at_end_of_gate(A), position * 4);
+  EXPECT_EQ(output_at_end_of_gate(B), 2048);
+}
+
+TEST(toggle_flip_with_a_knob_at_zero_leaves_the_other_envelope_alone) {
+  check_toggle_flip_leaves_other_envelope_alone(0);
+}
+
+// 4 is the highest reading where subtracting the threshold of 5 goes below zero.
+TEST(toggle_flip_with_a_knob_at_4_leaves_the_other_envelope_alone) {
+  check_toggle_flip_leaves_other_envelope_alone(4);
+}
+
+TEST(knob_wiggle_inside_the_threshold_near_zero_is_ignored) {
+  boot_with_all_knobs_at(512);
+  select_envelope(A);
+  turn_knob(SUSTAIN_POT, 0);
+  turn_knob(SUSTAIN_POT, 3);  // 3 counts is inside the 5-count dead band that rejects ADC noise
+  hold_gate_for(400);
+  EXPECT_EQ(output_at_end_of_gate(A), 0);
+}
+
+TEST(knob_move_beyond_the_threshold_near_zero_edits_only_the_selected_envelope) {
+  boot_with_all_knobs_at(512);
+  select_envelope(B);
+  turn_knob(SUSTAIN_POT, 0);
+  turn_knob(SUSTAIN_POT, 10);
+  hold_gate_for(400);
+  EXPECT_EQ(output_at_end_of_gate(B), 40);
+  EXPECT_EQ(output_at_end_of_gate(A), 2048);
 }
 
 }  // namespace

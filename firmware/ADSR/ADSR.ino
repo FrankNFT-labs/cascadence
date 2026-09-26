@@ -34,7 +34,7 @@ const int PIN_CS = 5;
 const int A = 0;
 const int B = 1;
 
-unsigned int lastanalogread[4];
+int lastanalogread[4];   // signed like analogRead(), so subtracting THRESHOLD near zero goes negative instead of wrapping
 
 float alpha[2]={0.7,0.7};   // this is the pole location ('time constant') used for the first-order difference equation
 double alpha1[2]={0.9,0.9};  // initial value for attack
@@ -182,7 +182,7 @@ void loop() {
 
 void checkforchange (int scan)
 {
-  unsigned int tempread[4];
+  int tempread[4];   // signed, like lastanalogread
   unsigned char x;
   #define THRESHOLD 5
   
