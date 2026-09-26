@@ -111,7 +111,8 @@ void loop() {
     boolean gate=!digitalRead(gatePin);        // read the gate input every time through the loop
     checkforchange(scan);                     // scan only one of the other inputs each pass 
     
-    boolean trigger=gate||(loop_mode&&release_done);  // trigger a, ADSR even if there's a gate OR if we're in loop mode
+    // in loop mode, retrigger once both envelopes have finished releasing
+    boolean trigger=gate||(loop_mode&&release_done[A]&&release_done[B]);  // trigger a, ADSR even if there's a gate OR if we're in loop mode
     while(trigger){  
       if(note_active[A]==false){                   // if a note isn't active and we're triggered, then start one!
       decay[A] = false;
@@ -143,10 +144,16 @@ void loop() {
       envelope[B]=((1.0-alpha[B])*drive[B]+alpha[B]*envelope[B]);
       setOutput(A, GAIN_2, NO_SHTDWN, (round(envelope[A])));                   // and output the envelope to the DAC
       setOutput(B, GAIN_2, NO_SHTDWN, (round(envelope[B]))); 
+      if((loop_mode==true)&&(decay[A]==true)&&(decay[B]==true)                  // in loop mode, break out once both envelopes
+         &&(envelope[A]<(float)(sustain_Level[A]+1.0))&&(envelope[B]<(float)(sustain_Level[B]+1.0))){  // have decayed to sustain
+        decay[A] = false;
+        decay[B] = false;
+        break;
+      }
      
 
     gate=!digitalRead(gatePin);                      // read the gate pin (remember we're in the while loop)
-    trigger=gate||(loop_mode&&release_done);        // and re-evaluate the trigger function
+    trigger=gate||(loop_mode&&release_done[A]&&release_done[B]);        // and re-evaluate the trigger function
     }
     
     if(note_active[A]==true){                // this is the start of the release phase
