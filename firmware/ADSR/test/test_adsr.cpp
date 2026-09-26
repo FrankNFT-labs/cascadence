@@ -7,10 +7,12 @@
 
 #include <signal.h>
 #include <stdio.h>
+#include <string.h>
 #include <sys/wait.h>
 #include <unistd.h>
 
 #include <algorithm>
+#include <set>
 #include <sstream>
 #include <string>
 #include <vector>
@@ -28,6 +30,12 @@ void checkforchange(int scan);
 // ---------------------------------------------------------------------------
 
 namespace {
+
+// Pots from top to bottom, one ADC channel each.
+const int ATTACK_POT = 0;
+const int DECAY_POT = 1;
+const int SUSTAIN_POT = 2;
+const int RELEASE_POT = 3;
 
 // A single pass of loop() that reads the gate more often than this is stuck.
 const long MAX_GATE_READS_PER_PASS = 100000;
@@ -47,6 +55,7 @@ struct Board {
   long gate_high_reads_left = 0;
   bool gate_seen_high = false;
   long gate_reads_this_pass = 0;
+  std::vector<int> sampled_adc_channels;
   std::vector<DacWrite> dac[2];
   bool dac_selected = false;
   std::vector<uint8_t> frame;
@@ -93,6 +102,7 @@ int digitalRead(uint8_t pin) {
 }
 
 int analogRead(uint8_t channel) {
+  board.sampled_adc_channels.push_back(channel);
   return channel < 4 ? board.pot[channel] : 0;  // ADC4 is the DAC clock line, which idles low
 }
 
@@ -134,6 +144,15 @@ unsigned output_at_end_of_gate(int channel) {
   throw TestFailure{"nothing was written to the DAC while the gate was held"};
 }
 
+unsigned current_output(int channel) {
+  if (board.dac[channel].empty()) throw TestFailure{"nothing was written to the DAC"};
+  return board.dac[channel].back().value;
+}
+
+std::set<int> adc_channels_sampled() {
+  return std::set<int>(board.sampled_adc_channels.begin(), board.sampled_adc_channels.end());
+}
+
 // ---------------------------------------------------------------------------
 // Checks and test registry
 // ---------------------------------------------------------------------------
@@ -150,6 +169,20 @@ void expect_at_least(long actual, long minimum, const char *expression, int line
   std::ostringstream message;
   message << "line " << line << ": " << expression << " is " << actual << ", expected at least " << minimum;
   throw TestFailure{message.str()};
+}
+
+std::string describe(const std::set<int> &values) {
+  std::ostringstream text;
+  text << "{";
+  for (int value : values) text << (value == *values.begin() ? "" : ", ") << value;
+  text << "}";
+  return text.str();
+}
+
+void expect_equal(const std::set<int> &actual, const std::set<int> &expected, const char *expression, int line) {
+  if (actual == expected) return;
+  throw TestFailure{"line " + std::to_string(line) + ": " + expression + " is " + describe(actual) + ", expected " +
+                    describe(expected)};
 }
 
 #define EXPECT_EQ(actual, expected) expect_equal((actual), (expected), #actual, __LINE__)
@@ -187,6 +220,20 @@ TEST(held_gate_climbs_to_the_attack_peak_then_settles_at_the_sustain_level) {
   EXPECT_EQ(output_at_end_of_gate(B), 2048);
 }
 
+TEST(pot_scan_samples_only_the_four_pot_channels) {
+  boot_with_all_knobs_at(512);
+  run_passes(20);
+  EXPECT_EQ(adc_channels_sampled(), (std::set<int>{ATTACK_POT, DECAY_POT, SUSTAIN_POT, RELEASE_POT}));
+}
+
+TEST(released_gate_returns_both_outputs_to_zero) {
+  boot_with_all_knobs_at(512);
+  hold_gate_for(400);
+  run_passes(2000);
+  EXPECT_EQ(current_output(A), 0);
+  EXPECT_EQ(current_output(B), 0);
+}
+
 }  // namespace
 
 // Runs every test in its own process, so each one starts from a freshly booted
@@ -220,8 +267,10 @@ int main() {
     if (WIFEXITED(status) && WEXITSTATUS(status) == 3) continue;  // already reported by the child
     if (WIFSIGNALED(status) && WTERMSIG(status) == SIGALRM)
       printf("FAIL  %s\n      timed out\n", test.name);
+    else if (WIFSIGNALED(status))
+      printf("FAIL  %s\n      crashed: %s\n", test.name, strsignal(WTERMSIG(status)));
     else
-      printf("FAIL  %s\n      crashed or was stopped by a sanitizer, see the message above\n", test.name);
+      printf("FAIL  %s\n      exited with status %d, see the sanitizer message above\n", test.name, WEXITSTATUS(status));
   }
   printf("\n%d of %zu tests failed\n", failed, registered_tests().size());
   return failed == 0 ? 0 : 1;

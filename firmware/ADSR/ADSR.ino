@@ -174,7 +174,8 @@ void loop() {
     if(envelope[B]<4){                                  // is the release phase ended?
       release_done[B]=true;                             // yes - so flag it
     }
-    if(scan==5){                                     // increment the scan pointer
+    // four pots, so scan 0-3; ADSRduino's fifth slot read a loop-mode switch this board does not have
+    if(scan==4){                                     // increment the scan pointer
       scan=0;
     }
 }
