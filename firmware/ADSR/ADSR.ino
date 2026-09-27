@@ -51,7 +51,6 @@ int drive[2] = {0,0};
 int sustain_Level[2] = {0,0};
 int scan = 0;
 boolean note_active[2] = {false,false};
-boolean trigger = false;
 boolean decay[2] = {false,false};
 
 
@@ -173,7 +172,6 @@ void loop() {
 void checkforchange (int scan)
 {
   int tempread[4];   // signed, like lastanalogread
-  unsigned char x;
   #define THRESHOLD 5
   
     tempread[scan]=analogRead(scan);
