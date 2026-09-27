@@ -31,17 +31,31 @@ void checkforchange(int scan);
 
 namespace {
 
-// Pots from top to bottom, one ADC channel each.
-const int ATTACK_POT = 0;
-const int DECAY_POT = 1;
-const int SUSTAIN_POT = 2;
-const int RELEASE_POT = 3;
+// Pots from top to bottom, on the ADC channels the sketch declares for them.
+const int ATTACK_POT = POTS[0];
+const int DECAY_POT = POTS[1];
+const int SUSTAIN_POT = POTS[2];
+const int RELEASE_POT = POTS[3];
+
+// Every test boots with all four knobs at the midpoint.
+const int KNOB_MIDPOINT = 512;
+
+// The sketch switches from attack to decay once the envelope passes this.
+const unsigned ATTACK_PEAK = 4000;
+
+// Held gate steps for attack and decay to settle at the sustain level, and
+// passes after a gate for the release to reach zero, both with generous margin.
+const long GATE_READS_TO_SETTLE = 400;
+const int PASSES_TO_RELEASE_FULLY = 2000;
 
 // A single pass of loop() that reads the gate more often than this is stuck.
 const long MAX_GATE_READS_PER_PASS = 100000;
 
 // Passes that let the firmware's pot scan visit every pot at least once.
 const int PASSES_TO_NOTICE_A_CONTROL = 8;
+
+// The sustain level the sketch derives from a sustain knob reading.
+int sustain_level_for(int knob) { return knob * 4; }
 
 struct TestFailure {
   std::string message;
@@ -53,12 +67,12 @@ struct DacWrite {
 };
 
 struct Board {
-  int pot[4] = {512, 512, 512, 512};  // ADC readings, 0..1023, pots from top to bottom
+  int pot[4] = {KNOB_MIDPOINT, KNOB_MIDPOINT, KNOB_MIDPOINT, KNOB_MIDPOINT};  // ADC readings, 0..1023
   bool toggle_on_b = false;
   long gate_high_reads_left = 0;
   bool gate_seen_high = false;
   long gate_reads_this_pass = 0;
-  std::vector<int> sampled_adc_channels;
+  std::set<int> sampled_adc_channels;
   std::vector<DacWrite> dac[2];
   bool dac_selected = false;
   std::vector<uint8_t> frame;
@@ -105,7 +119,7 @@ int digitalRead(uint8_t pin) {
 }
 
 int analogRead(uint8_t channel) {
-  board.sampled_adc_channels.push_back(channel);
+  board.sampled_adc_channels.insert(channel);
   return channel < 4 ? board.pot[channel] : 0;  // ADC4 is the DAC clock line, which idles low
 }
 
@@ -122,10 +136,9 @@ void run_passes(int count) {
   }
 }
 
-void boot_with_all_knobs_at(int position) {
-  for (int &reading : board.pot) reading = position;
-  setup();
-}
+// Boots the sketch with every knob at KNOB_MIDPOINT. Each test runs in its own
+// process and the fork is the reset, so a test boots exactly once.
+void boot() { setup(); }
 
 void turn_knob(int pot, int position) {
   board.pot[pot] = position;
@@ -145,6 +158,12 @@ void hold_gate_for(long reads) {
   run_passes(1);
 }
 
+// Plays one note and lets the release finish.
+void play_and_fully_release() {
+  hold_gate_for(GATE_READS_TO_SETTLE);
+  run_passes(PASSES_TO_RELEASE_FULLY);
+}
+
 unsigned peak_output(int channel) {
   unsigned peak = 0;
   for (const DacWrite &write : board.dac[channel]) peak = std::max(peak, write.value);
@@ -160,10 +179,6 @@ unsigned output_at_end_of_gate(int channel) {
 unsigned current_output(int channel) {
   if (board.dac[channel].empty()) throw TestFailure{"nothing was written to the DAC"};
   return board.dac[channel].back().value;
-}
-
-std::set<int> adc_channels_sampled() {
-  return std::set<int>(board.sampled_adc_channels.begin(), board.sampled_adc_channels.end());
 }
 
 // ---------------------------------------------------------------------------
@@ -225,24 +240,23 @@ struct RegisterTest {
 // ---------------------------------------------------------------------------
 
 TEST(held_gate_climbs_to_the_attack_peak_then_settles_at_the_sustain_level) {
-  boot_with_all_knobs_at(512);  // sustain knob at 512: sustain level 512 * 4 = 2048
-  hold_gate_for(400);
-  EXPECT_AT_LEAST(peak_output(A), 4000);
-  EXPECT_AT_LEAST(peak_output(B), 4000);
-  EXPECT_EQ(output_at_end_of_gate(A), 2048);
-  EXPECT_EQ(output_at_end_of_gate(B), 2048);
+  boot();
+  hold_gate_for(GATE_READS_TO_SETTLE);
+  EXPECT_AT_LEAST(peak_output(A), ATTACK_PEAK);
+  EXPECT_AT_LEAST(peak_output(B), ATTACK_PEAK);
+  EXPECT_EQ(output_at_end_of_gate(A), sustain_level_for(KNOB_MIDPOINT));
+  EXPECT_EQ(output_at_end_of_gate(B), sustain_level_for(KNOB_MIDPOINT));
 }
 
 TEST(pot_scan_samples_only_the_four_pot_channels) {
-  boot_with_all_knobs_at(512);
+  boot();
   run_passes(20);
-  EXPECT_EQ(adc_channels_sampled(), (std::set<int>{ATTACK_POT, DECAY_POT, SUSTAIN_POT, RELEASE_POT}));
+  EXPECT_EQ(board.sampled_adc_channels, (std::set<int>{ATTACK_POT, DECAY_POT, SUSTAIN_POT, RELEASE_POT}));
 }
 
 TEST(released_gate_returns_both_outputs_to_zero) {
-  boot_with_all_knobs_at(512);
-  hold_gate_for(400);
-  run_passes(2000);
+  boot();
+  play_and_fully_release();
   EXPECT_EQ(current_output(A), 0);
   EXPECT_EQ(current_output(B), 0);
 }
@@ -251,13 +265,13 @@ TEST(released_gate_returns_both_outputs_to_zero) {
 // toggle to B without touching any knob. B was never edited, so it must keep
 // the sustain level it booted with.
 void check_toggle_flip_leaves_other_envelope_alone(int position) {
-  boot_with_all_knobs_at(512);
+  boot();
   select_envelope(A);
   turn_knob(SUSTAIN_POT, position);
   select_envelope(B);
-  hold_gate_for(400);
-  EXPECT_EQ(output_at_end_of_gate(A), position * 4);
-  EXPECT_EQ(output_at_end_of_gate(B), 2048);
+  hold_gate_for(GATE_READS_TO_SETTLE);
+  EXPECT_EQ(output_at_end_of_gate(A), sustain_level_for(position));
+  EXPECT_EQ(output_at_end_of_gate(B), sustain_level_for(KNOB_MIDPOINT));
 }
 
 TEST(toggle_flip_with_a_knob_at_zero_leaves_the_other_envelope_alone) {
@@ -270,40 +284,37 @@ TEST(toggle_flip_with_a_knob_at_4_leaves_the_other_envelope_alone) {
 }
 
 TEST(knob_wiggle_inside_the_threshold_near_zero_is_ignored) {
-  boot_with_all_knobs_at(512);
+  boot();
   select_envelope(A);
   turn_knob(SUSTAIN_POT, 0);
   turn_knob(SUSTAIN_POT, 3);  // 3 counts is inside the 5-count dead band that rejects ADC noise
-  hold_gate_for(400);
+  hold_gate_for(GATE_READS_TO_SETTLE);
   EXPECT_EQ(output_at_end_of_gate(A), 0);
 }
 
 TEST(knob_move_beyond_the_threshold_near_zero_edits_only_the_selected_envelope) {
-  boot_with_all_knobs_at(512);
+  boot();
   select_envelope(B);
   turn_knob(SUSTAIN_POT, 0);
   turn_knob(SUSTAIN_POT, 10);
-  hold_gate_for(400);
-  EXPECT_EQ(output_at_end_of_gate(B), 40);
-  EXPECT_EQ(output_at_end_of_gate(A), 2048);
+  hold_gate_for(GATE_READS_TO_SETTLE);
+  EXPECT_EQ(output_at_end_of_gate(B), sustain_level_for(10));
+  EXPECT_EQ(output_at_end_of_gate(A), sustain_level_for(KNOB_MIDPOINT));
 }
 
 TEST(outputs_stay_at_zero_until_a_gate_arrives) {
-  boot_with_all_knobs_at(512);
+  boot();
   run_passes(200);
   EXPECT_EQ(peak_output(A), 0);
   EXPECT_EQ(peak_output(B), 0);
 }
 
 TEST(second_gate_after_a_full_release_plays_a_new_envelope) {
-  boot_with_all_knobs_at(512);
-  hold_gate_for(400);
-  run_passes(2000);
-  EXPECT_EQ(current_output(A), 0);
-  EXPECT_EQ(current_output(B), 0);
-  hold_gate_for(400);
-  EXPECT_EQ(output_at_end_of_gate(A), 2048);
-  EXPECT_EQ(output_at_end_of_gate(B), 2048);
+  boot();
+  play_and_fully_release();
+  hold_gate_for(GATE_READS_TO_SETTLE);
+  EXPECT_EQ(output_at_end_of_gate(A), sustain_level_for(KNOB_MIDPOINT));
+  EXPECT_EQ(output_at_end_of_gate(B), sustain_level_for(KNOB_MIDPOINT));
 }
 
 }  // namespace
