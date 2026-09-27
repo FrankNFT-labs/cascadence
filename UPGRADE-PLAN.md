@@ -15,7 +15,7 @@ How the findings were obtained: a line-by-line review of every sketch, compiles 
 
 | Firmware | Verdict | Main reason |
 |---|---|---|
-| ADSR | Promising but flawed | Sound envelope core; port bugs now fixed on a branch; timing is tied to loop speed and the knob taper is unusable below 90 % |
+| ADSR | Promising but flawed | Sound envelope core; port bugs now fixed on a branch; timing is tied to loop speed and the knob taper crowds the useful range into the top of the travel |
 | Euclidean Sequencer | Promising but flawed | Pattern generator is correct for all 528 length/density pairs; the sequencing around it glitches every 32 clocks, never initialises the second channel, and fires B 40 ms after A |
 | Turing Machine | Promising but flawed | Register logic matches the original; output wraps instead of clipping, and the quantizer constant is for a prototype with a different output range |
 | PolyCrossClock | Promising but flawed | Good concept for the module; free-running divisions drift off the beat, the randomness knob wraps, and the docs describe another sketch |
@@ -28,7 +28,7 @@ Flash limit is 6012 bytes (8 KB minus the micronucleus bootloader), RAM is 512 b
 
 | Sketch | Last change | Lines | Flash | RAM | Warnings |
 |---|---|---|---|---|---|
-| ADSR | 25-10-2019 | 233 | 4366 (4550 with fixes) | 103 | 1, plus 2 that only clang reports |
+| ADSR | 25-10-2019 | 233 | 4366 (4254 on `fix/adsr-bugs`) | 103 (100) | 1, plus 2 that only clang reports (1) |
 | Template | 30-09-2019 | 112 | 1026 | 18 | 0 |
 | LockingSequencer | 06-09-2019 | 116 | 1336 | 34 | 3 |
 | euclideansequencer | 09-09-2019 | 276 | 4508 | 49 | 7 |
@@ -52,15 +52,15 @@ Line numbers refer to the files as they are on `master`.
 
 ### ADSR
 
-Fixed on `fix/adsr-bugs` (four commits, pushed, no PR yet), each with a host test that failed before the fix:
+Fixed on `fix/adsr-bugs` (pushed, no PR yet), items 1 and 2 each with a host test that failed before the fix:
 
 1. Pot scan slot 4 wrote past a 4-element stack array and past `lastanalogread`, where it overlapped the `millis()` counters ([ADSR.ino:177](firmware/ADSR/ADSR.ino#L177)).
 2. Unsigned threshold compare wrapped for readings below 5, so a knob parked at zero was copied into the other envelope on every toggle flip ([ADSR.ino:189](firmware/ADSR/ADSR.ino#L189)).
-3. Loop mode tested the `release_done` array itself, which is always true, and the upstream end-of-decay exit was missing, so enabling it hung the firmware ([ADSR.ino:114](firmware/ADSR/ADSR.ino#L114)).
+3. Loop mode tested the `release_done` array itself, which is always true, and the upstream end-of-decay exit was missing, so enabling it hung the firmware ([ADSR.ino:114](firmware/ADSR/ADSR.ino#L114)). It was repaired first, then removed on 27-09-2026 together with `release_done`, because it had no panel control and the LFO use is out of scope. Flash went from 4366 to 4254 bytes.
 
 Remaining, in priority order:
 
-4. **Pots are not read while the gate is high.** The change detector runs outside the gate loop ([ADSR.ino:112](firmware/ADSR/ADSR.ino#L112)). With held notes, sustain and release changes only apply after the gate falls. Inherited from ADSRduino.
+4. **Pots are not read while the gate is high.** The change detector runs outside the gate loop ([ADSR.ino:112](firmware/ADSR/ADSR.ino#L112)). With held notes, sustain and release changes only apply after the gate falls. Inherited from ADSRduino. Decision 27-09-2026: all four parameters stay live, as on an analog envelope. Reading the pots inside the gate loop is not enough on its own: the attack and decay constants are copied into `alpha` when a phase starts, and the sustain level into `drive` when decay starts. The fix must also update the phase in progress when its knob moves. The first-order filter turns each change into a glide, so no clicks.
 5. **Envelope times depend on loop speed.** One envelope step per loop pass, and the pass is dominated by two bit-banged DAC writes plus an ADC read, roughly 0.6 to 1 ms (estimate, not measured). Any code added to the loop retunes every envelope. Fix direction: a fixed tick from `micros()` or a timer, one state-machine step per tick.
 6. **Knob taper.** Over half the attack knob's travel gives a time constant under 10 passes; only the top 15 % gives more than 100. Full-clockwise release takes about 1.4 million passes to finish. Fix direction: exponential mapping from a chosen minimum to maximum time, computed only on knob change, which also lets `cos()` and `sqrt()` go.
 
@@ -72,7 +72,7 @@ Remaining, in priority order:
    | 100 % | 1999 | 199999 |
 
 7. **No trigger mode.** The attack only advances while the gate is high, so a short trigger produces almost no envelope, although the README calls the input "trigger/gate".
-8. **Loop mode has no panel control.** It only turns on by editing the source. Decide whether to give it a gesture or delete it.
+8. **Loop mode: resolved by removal**, 27-09-2026. See item 3.
 9. Hygiene: `MOSI` and `SCK` constant names clash with ATTinyCore macros, `setOutput` masks the high byte with 0xFF so a value of 4096 or more would flip control bits, the A and B code blocks are copy-pasted, dead `trigger` global, unused variables, comments name the wrong DAC.
 
 ### Euclidean Sequencer
@@ -183,7 +183,7 @@ Each phase is one or more branches named `fix/...`, `feat/...` or `docs/...`, on
 
 ### Phase 0: ADSR fixes (done, awaiting hardware test)
 
-Branch `fix/adsr-bugs`. Hardware checklist before merging:
+Branch `fix/adsr-bugs`: host test harness, the scan and threshold fixes, and the loop-mode removal. Hardware checklist before merging:
 
 - Park the sustain knob fully counter-clockwise on A, flip the toggle to B, confirm B's sustain does not change.
 - Hold a long gate, confirm attack, decay and sustain on both outputs; release, confirm both fall to zero.
@@ -235,7 +235,7 @@ Effort half a day to a day. Risk low. Can run in parallel with phase 2.
 
 Effort 2 to 3 days total. Risk medium, these change how the module feels; each needs a listening test.
 
-- ADSR: fixed-tick state machine (pots readable during gates, uniform timing), exponential knob taper with documented ranges, a trigger mode, and a decision on loop mode.
+- ADSR: fixed-tick state machine with live parameters during gates, applied to the phase in progress (item 4), uniform timing, an exponential knob taper with documented ranges, and a trigger mode.
 - Locking Sequencer: optional quantizer from the shared helper.
 - PolyCrossClock: finish input sync, expose the tempo range in the README.
 - Turing Machine: stored calibration for the semitone constant.
@@ -246,7 +246,7 @@ Effort 2 to 3 days total. Risk medium, these change how the module feels; each n
    ```bash
    mkdir -p /tmp/cascadence-sketchbook/hardware && cp -R software/CCTV /tmp/cascadence-sketchbook/hardware/ && ARDUINO_DIRECTORIES_USER=/tmp/cascadence-sketchbook arduino-cli compile --fqbn CCTV:avr:CCTV firmware/ADSR
    ```
-2. Compile with warnings (until ADR-5 lands in the package):
+2. Compile with warnings (until ADR-5 lands in the package). ATTinyCore defines `MOSI` and `SCK` as macros, so until phase 1 renames those constants, run this on a scratch copy with them renamed:
    ```bash
    arduino-cli compile --fqbn "ATTinyCore:avr:attinyx4:chip=84,clock=8internal,pinmapping=old" --warnings all firmware/ADSR
    ```
@@ -256,9 +256,13 @@ Effort 2 to 3 days total. Risk medium, these change how the module feels; each n
    ```
 4. The hardware checklist of the phase.
 
+## Decisions made
+
+- 27-09-2026: ADSR parameters stay live while a gate is held, for all four knobs (ADSR item 4).
+- 27-09-2026: ADSR loop mode removed; the LFO use is out of scope for now (ADSR items 3 and 8).
+
 ## Decisions needed
 
-- Keep loop mode in the ADSR with a control gesture, or delete it. It has no panel control.
 - Accept "set your sketchbook to `firmware/`" as the documented setup, or keep the copy-a-folder instructions and add a third one for the library.
 - Which full-scale output voltage the shipped units really have, measured on one unit. The Turing quantizer and any future V/oct work depend on it.
 - Whether to add a LICENSE file, which needs the two upstream licences checked first.
