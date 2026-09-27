@@ -166,22 +166,6 @@ std::set<int> adc_channels_sampled() {
   return std::set<int>(board.sampled_adc_channels.begin(), board.sampled_adc_channels.end());
 }
 
-// Counts how often an output climbed to the top of the attack (4000) after
-// having fallen to 4 or below, where the firmware treats a release as done.
-int completed_cycles(int channel) {
-  int cycles = 0;
-  bool released = true;  // outputs start at zero
-  for (const DacWrite &write : board.dac[channel]) {
-    if (released && write.value >= 4000) {
-      ++cycles;
-      released = false;
-    } else if (write.value <= 4) {
-      released = true;
-    }
-  }
-  return cycles;
-}
-
 // ---------------------------------------------------------------------------
 // Checks and test registry
 // ---------------------------------------------------------------------------
@@ -304,32 +288,22 @@ TEST(knob_move_beyond_the_threshold_near_zero_edits_only_the_selected_envelope) 
   EXPECT_EQ(output_at_end_of_gate(A), 2048);
 }
 
-TEST(without_loop_mode_outputs_stay_at_zero_until_a_gate_arrives) {
+TEST(outputs_stay_at_zero_until_a_gate_arrives) {
   boot_with_all_knobs_at(512);
   run_passes(200);
   EXPECT_EQ(peak_output(A), 0);
   EXPECT_EQ(peak_output(B), 0);
 }
 
-// Loop mode has no panel control; it is switched on by setting loop_mode in the sketch.
-TEST(loop_mode_cycles_both_envelopes_without_a_gate) {
+TEST(second_gate_after_a_full_release_plays_a_new_envelope) {
   boot_with_all_knobs_at(512);
-  loop_mode = true;
-  run_passes(600);
-  EXPECT_AT_LEAST(completed_cycles(A), 3);
-  EXPECT_AT_LEAST(completed_cycles(B), 3);
-}
-
-TEST(loop_mode_retriggers_only_after_both_envelopes_have_released) {
-  boot_with_all_knobs_at(512);
-  select_envelope(B);
-  turn_knob(RELEASE_POT, 800);  // B releases slowly
-  select_envelope(A);
-  turn_knob(RELEASE_POT, 0);  // A releases quickly
-  loop_mode = true;
+  hold_gate_for(400);
   run_passes(2000);
-  EXPECT_AT_LEAST(completed_cycles(B), 3);
-  EXPECT_EQ(completed_cycles(A), completed_cycles(B));
+  EXPECT_EQ(current_output(A), 0);
+  EXPECT_EQ(current_output(B), 0);
+  hold_gate_for(400);
+  EXPECT_EQ(output_at_end_of_gate(A), 2048);
+  EXPECT_EQ(output_at_end_of_gate(B), 2048);
 }
 
 }  // namespace

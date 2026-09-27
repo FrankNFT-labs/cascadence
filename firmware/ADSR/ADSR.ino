@@ -51,10 +51,8 @@ int drive[2] = {0,0};
 int sustain_Level[2] = {0,0};
 int scan = 0;
 boolean note_active[2] = {false,false};
-boolean loop_mode=false;
 boolean trigger = false;
 boolean decay[2] = {false,false};
-boolean release_done[2] = {true,true};
 
 
 void update_params(int scan, boolean chan);
@@ -111,8 +109,7 @@ void loop() {
     boolean gate=!digitalRead(gatePin);        // read the gate input every time through the loop
     checkforchange(scan);                     // scan only one of the other inputs each pass 
     
-    // in loop mode, retrigger once both envelopes have finished releasing
-    boolean trigger=gate||(loop_mode&&release_done[A]&&release_done[B]);  // trigger a, ADSR even if there's a gate OR if we're in loop mode
+    boolean trigger=gate;  // trigger the ADSR while there is a gate
     while(trigger){  
       if(note_active[A]==false){                   // if a note isn't active and we're triggered, then start one!
       decay[A] = false;
@@ -144,29 +141,21 @@ void loop() {
       envelope[B]=((1.0-alpha[B])*drive[B]+alpha[B]*envelope[B]);
       setOutput(A, GAIN_2, NO_SHTDWN, (round(envelope[A])));                   // and output the envelope to the DAC
       setOutput(B, GAIN_2, NO_SHTDWN, (round(envelope[B]))); 
-      if((loop_mode==true)&&(decay[A]==true)&&(decay[B]==true)                  // in loop mode, break out once both envelopes
-         &&(envelope[A]<(float)(sustain_Level[A]+1.0))&&(envelope[B]<(float)(sustain_Level[B]+1.0))){  // have decayed to sustain
-        decay[A] = false;
-        decay[B] = false;
-        break;
-      }
      
 
     gate=!digitalRead(gatePin);                      // read the gate pin (remember we're in the while loop)
-    trigger=gate||(loop_mode&&release_done[A]&&release_done[B]);        // and re-evaluate the trigger function
+    trigger=gate;        // and re-evaluate the trigger function
     }
     
     if(note_active[A]==true){                // this is the start of the release phase
       drive[A]=0;                              // drive towards zero
       alpha[A]=alpha3[A];                         // set 'time comnstant' alpha3 for release phase
       note_active[A]=false;                    // turn off note_active flag
-      release_done[A]=false;                   // and set release_flag done false
     }   
     if(note_active[B]==true){                // this is the start of the release phase
       drive[B]=0;                              // drive towards zero
       alpha[B]=alpha3[B];                         // set 'time comnstant' alpha3 for release phase
       note_active[B]=false;                    // turn off note_active flag
-      release_done[B]=false;                   // and set release_flag done false
     }   
   
     envelope[A]=((1.0-alpha3[A])*drive[A]+alpha3[A]*envelope[A]);   // implement the difference equation again (outside the while loop)
@@ -175,12 +164,6 @@ void loop() {
     setOutput(B, GAIN_2, NO_SHTDWN, (round(envelope[B])));                    // and output envelope
     gate=!digitalRead(gatePin);                       // watch out for a new note
     scan+=1;                                         // prepare to look at a new parameter input
-    if(envelope[A]<4){                                  // is the release phase ended?
-      release_done[A]=true;                             // yes - so flag it
-    }
-    if(envelope[B]<4){                                  // is the release phase ended?
-      release_done[B]=true;                             // yes - so flag it
-    }
     // four pots, so scan 0-3; ADSRduino's fifth slot read a loop-mode switch this board does not have
     if(scan==4){                                     // increment the scan pointer
       scan=0;
