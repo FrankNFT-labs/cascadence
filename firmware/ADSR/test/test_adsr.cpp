@@ -19,10 +19,6 @@
 
 #include "fake_arduino.h"
 
-// The Arduino build generates a prototype for every function in a sketch.
-// Plain C++ needs this one spelled out, because loop() calls it before its definition.
-void checkforchange(int scan);
-
 #include "../ADSR.ino"
 
 // ---------------------------------------------------------------------------

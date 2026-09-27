@@ -23,6 +23,7 @@ const int SHTDWN = 0;
 
 //pin definitions
 const int POTS[4]={0,1,2,3};
+const int POT_COUNT = sizeof(POTS)/sizeof(POTS[0]);
 const int gatePin = 8;
 const int CLK_IN = 8;
 const int SW = 7;
@@ -34,18 +35,14 @@ const int PIN_CS = 5;
 const int A = 0;
 const int B = 1;
 
-int lastanalogread[4];   // signed like analogRead(), so subtracting THRESHOLD near zero goes negative instead of wrapping
+int lastanalogread[POT_COUNT];   // signed like analogRead(), so subtracting THRESHOLD near zero goes negative instead of wrapping
 
-float alpha[2]={0.7,0.7};   // this is the pole location ('time constant') used for the first-order difference equation
+float alpha[2]={0.0,0.0};   // the pole location ('time constant') of the first-order difference equation, set at the start of each phase
 double alpha1[2]={0.9,0.9};  // initial value for attack
 double alpha2[2]={0.9,0.9};  // initial value for decay
 double alpha3[2]={0.95,0.95}; // initial value for release
 
 float envelope[2] = {0.0,0.0};  // initialise the envelope
-float CV0[2] = {0.0,0.0};       // result of reads from potentiometers (yes - it will only be an int, but helps with the casting!)
-float CV1[2] = {0.0,0.0};
-int CV2[2] = {0,0};
-float CV3[2] = {0.0,0.0};
 
 int drive[2] = {0,0};
 int sustain_Level[2] = {0,0};
@@ -55,6 +52,7 @@ boolean decay[2] = {false,false};
 
 
 void update_params(int scan, boolean chan);
+void checkforchange(int scan);
 
 // subroutine to set DAC on MCP4802
 void setOutput(byte channel, byte gain, byte shutdown, unsigned int val)
@@ -91,7 +89,7 @@ unsigned int x;
   digitalWrite(PIN_CS,HIGH);
   pinMode(PIN_CS, OUTPUT);
 
-  for(x=0;x<4;x++)
+  for(x=0;x<POT_COUNT;x++)
   {
     update_params(x,A); //initialize CVs
     update_params(x,B); //initialize CVs
@@ -108,8 +106,7 @@ void loop() {
     boolean gate=!digitalRead(gatePin);        // read the gate input every time through the loop
     checkforchange(scan);                     // scan only one of the other inputs each pass 
     
-    boolean trigger=gate;  // trigger the ADSR while there is a gate
-    while(trigger){  
+    while(gate){                              // run the ADSR while there is a gate
       if(note_active[A]==false){                   // if a note isn't active and we're triggered, then start one!
       decay[A] = false;
       drive[A]=4096;                               // drive toward full value
@@ -123,13 +120,13 @@ void loop() {
       note_active[B]=true;                         // set the note_active flag
       }
       
-      if((decay[A]==false)&&(envelope[A]>4000)&&(drive[A]==4096)){    // if we've reached envelope >4000 with drive= 4096, we must be at the end of attack phase
+      if((decay[A]==false)&&(envelope[A]>4000)){    // if we've reached envelope >4000 during the attack, we must be at the end of attack phase
                                                           // so switch to decay...
         decay[A] = true;                                         // set decay flag
         drive[A]=sustain_Level[A];                                  // drive toward sustain level
         alpha[A]=alpha2[A];                                         // and set 'time constant' alpha2 for decay phase
       } 
-      if((decay[B]==false)&&(envelope[B]>4000)&&(drive[B]==4096)){    // if we've reached envelope >4000 with drive= 4096, we must be at the end of attack phase
+      if((decay[B]==false)&&(envelope[B]>4000)){    // if we've reached envelope >4000 during the attack, we must be at the end of attack phase
                                                           // so switch to decay...
         decay[B] = true;                                         // set decay flag
         drive[B]=sustain_Level[B];                                  // drive toward sustain level
@@ -143,17 +140,14 @@ void loop() {
      
 
     gate=!digitalRead(gatePin);                      // read the gate pin (remember we're in the while loop)
-    trigger=gate;        // and re-evaluate the trigger function
     }
     
     if(note_active[A]==true){                // this is the start of the release phase
-      drive[A]=0;                              // drive towards zero
-      alpha[A]=alpha3[A];                         // set 'time comnstant' alpha3 for release phase
+      drive[A]=0;                              // drive towards zero; the release uses alpha3 directly below, so the release knob stays live
       note_active[A]=false;                    // turn off note_active flag
     }   
     if(note_active[B]==true){                // this is the start of the release phase
-      drive[B]=0;                              // drive towards zero
-      alpha[B]=alpha3[B];                         // set 'time comnstant' alpha3 for release phase
+      drive[B]=0;                              // drive towards zero; the release uses alpha3 directly below, so the release knob stays live
       note_active[B]=false;                    // turn off note_active flag
     }   
   
@@ -161,25 +155,23 @@ void loop() {
     setOutput(A, GAIN_2, NO_SHTDWN, (round(envelope[A])));                    // and output envelope
     envelope[B]=((1.0-alpha3[B])*drive[B]+alpha3[B]*envelope[B]);   // implement the difference equation again (outside the while loop)
     setOutput(B, GAIN_2, NO_SHTDWN, (round(envelope[B])));                    // and output envelope
-    gate=!digitalRead(gatePin);                       // watch out for a new note
     scan+=1;                                         // prepare to look at a new parameter input
-    // four pots, so scan 0-3; ADSRduino's fifth slot read a loop-mode switch this board does not have
-    if(scan==4){                                     // increment the scan pointer
+    if(scan==POT_COUNT){                             // wrap after the last pot (ADSRduino's fifth slot read a loop-mode switch this board does not have)
       scan=0;
     }
 }
 
 void checkforchange (int scan)
 {
-  int tempread[4];   // signed, like lastanalogread
+  int reading;   // signed, like lastanalogread
   #define THRESHOLD 5
   
-    tempread[scan]=analogRead(scan);
-    if(tempread[scan]<(lastanalogread[scan]-THRESHOLD) || tempread[scan]>(lastanalogread[scan]+THRESHOLD))
+    reading=analogRead(scan);
+    if(reading<(lastanalogread[scan]-THRESHOLD) || reading>(lastanalogread[scan]+THRESHOLD))
     {
       //knob has been moved while we're on this channel, update it.
       update_params(scan,!digitalRead(SW));
-      lastanalogread[scan]=tempread[scan];
+      lastanalogread[scan]=reading;
       
     }
   
@@ -187,24 +179,24 @@ void checkforchange (int scan)
 }
 
 void update_params(int scan, boolean chan){             // read the input parameters
+  float reading;                                        // the pot reading: an int, kept as float so the divisions below are not integer divisions
   switch (scan){
   case 0:
-  CV0[chan]=analogRead(0);                      // get the attack pole location
-  alpha1[chan]=0.999*cos((1023-CV0[chan])/795);
+  reading=analogRead(0);                      // get the attack pole location
+  alpha1[chan]=0.999*cos((1023-reading)/795);
   alpha1[chan]=sqrt(alpha1[chan]);  
   break;
   case 1:
-  CV1[chan]=analogRead(1);                      // get the release pole location
-  alpha2[chan]=0.999*cos((1023-CV1[chan])/795);
+  reading=analogRead(1);                      // get the decay pole location
+  alpha2[chan]=0.999*cos((1023-reading)/795);
   alpha2[chan]=sqrt(alpha2[chan]);   
   break; 
   case 2:
-  CV2[chan]=analogRead(2);                     // get the (integer) sustain level
-  sustain_Level[chan]=CV2[chan]<<2;
+  sustain_Level[chan]=analogRead(2)<<2;                     // get the (integer) sustain level
   break;
   case 3:
-  CV3[chan]=analogRead(3);                     // get the release pole location (potentially closer to 1.0)
-  alpha3[chan]=0.99999*cos((1023-CV3[chan])/795);
+  reading=analogRead(3);                     // get the release pole location (potentially closer to 1.0)
+  alpha3[chan]=0.99999*cos((1023-reading)/795);
   alpha3[chan]=sqrt(alpha3[chan]);
   break;  
  
