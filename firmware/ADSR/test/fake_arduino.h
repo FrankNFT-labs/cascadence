@@ -1,12 +1,17 @@
 // Host-side stand-in for the parts of the Arduino API that ADSR.ino uses, so the
 // sketch compiles as ordinary C++ on a PC. The functions are defined as a fake
 // Cascadence board in test_adsr.cpp, after the sketch is included, so the fake
-// can use the sketch's own pin constants.
+// can use the sketch's own pin constants. Include this header after the standard
+// headers: the round() macro below must not reach <cmath>.
 #ifndef FAKE_ARDUINO_H
 #define FAKE_ARDUINO_H
 
 #include <math.h>
 #include <stdint.h>
+
+// Arduino's round() is a macro, not libm's function: it adds a half and
+// truncates to long, in the target's 4-byte float arithmetic, hence 0.5f.
+#define round(x) ((x) >= 0 ? (long)((x) + 0.5f) : (long)((x) - 0.5f))
 
 typedef bool boolean;
 typedef uint8_t byte;
