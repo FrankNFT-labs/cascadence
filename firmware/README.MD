@@ -19,6 +19,8 @@ Potentiometers from top to bottom - Attack, Decay, Sustain, Release
 
 Toggle switch - changes active editing of envelope A or B.
 
+Every control is explained in [ADSR/README.md](ADSR/README.md).
+
 ## Euclidean Sequencer
 Generates mathematically derived rhythms from a set of input conditions. 32 step.
 
