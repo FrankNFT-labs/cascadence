@@ -2,11 +2,11 @@
 
 Date: 26-09-2026. Scope: the six sketches in `firmware/`, the board package in `software/CCTV`, and `firmware/README.MD`.
 
-How the findings were obtained: a line-by-line review of every sketch, compiles of every sketch with the repo's own board package (flash and RAM figures below) and with avr-gcc warnings enabled, host-side runs of the ADSR, Euclidean and PolyCrossClock logic against a fake board, and the schematic in `hardware/`. Nothing in this document has been verified on the module yet; each phase ends with a hardware checklist.
+How the findings were obtained: a line-by-line review of every sketch, compiles of every sketch with the repo's own board package (flash and RAM figures below) and with avr-gcc warnings enabled, host-side runs of the ADSR, Euclidean and PolyCrossClock logic against a fake board, and the schematic in `hardware/`. Apart from a first run of the fixed ADSR on 29-09-2026, nothing in this document has been verified on the module yet; each phase ends with a hardware checklist.
 
 ## Executive summary
 
-- Every firmware runs, none is clean. Four of six sketches have real bugs: ADSR (three, fixed on branch `fix/adsr-bugs`, hardware test pending), Euclidean (four), Turing Machine (three), PolyCrossClock (three). The Locking Sequencer has usability issues, the Template is fine but spreads the same boilerplate into every new firmware.
+- Every firmware runs, none is clean. Four of six sketches have real bugs: ADSR (three, fixed on branch `fix/adsr-bugs`, which plays fine on the module; its hardware checklist is still open), Euclidean (four), Turing Machine (three), PolyCrossClock (three). The Locking Sequencer has usability issues, the Template is fine but spreads the same boilerplate into every new firmware.
 - The causes are structural, not individual mistakes: each sketch carries its own copy of the pin and DAC boilerplate, the DAC write is slow bit-banging, timing is blocking everywhere (`delay(40)` pulses, busy-waits on the clock input), and the board package compiles with all warnings off, so 18 warnings, including two "your init code never runs" bugs, were never seen.
 - Recommended path: fix bugs per firmware behind host tests, then extract a shared `Cascadence` library with a fast DAC write and non-blocking helpers, make the repository an Arduino sketchbook with CI, and only then do feature work.
 - Effort: about six focused working days in total, split into phases that each leave the repo in a releasable state. Main risks: timing changes alter how the envelopes and clocks feel, and the Turing quantizer needs a hardware measurement before it can be right.
@@ -181,10 +181,15 @@ flowchart LR
 
 Each phase is one or more branches named `fix/...`, `feat/...` or `docs/...`, one concern per commit, bug fixes never mixed with refactors.
 
-### Phase 0: ADSR fixes (done, awaiting hardware test)
+### Phase 0: ADSR fixes (done, hardware checklist open)
 
-Branch `fix/adsr-bugs`: host test harness, the scan and threshold fixes, and the loop-mode removal. Hardware checklist before merging:
+Branch `fix/adsr-bugs`: host test harness, the scan and threshold fixes, and the loop-mode removal.
 
+Status 29-09-2026: flashed onto the module with a USBasp (see `AGENTS.md`) and played; the envelopes work. None of the checks below has been done yet.
+
+Hardware checklist before merging:
+
+- Flip the toggle left, turn the sustain knob well away from its current position and hold a gate: only output A (bottom left) should settle at the new level. If B does instead, left and right are swapped in the ADSR README and in `AGENTS.md`.
 - Park the sustain knob fully counter-clockwise on A, flip the toggle to B, confirm B's sustain does not change.
 - Hold a long gate, confirm attack, decay and sustain on both outputs; release, confirm both fall to zero.
 - Leave the module running for 10 minutes with a sequencer clock, confirm no stuck output.
