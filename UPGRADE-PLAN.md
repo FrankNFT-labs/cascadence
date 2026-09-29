@@ -6,7 +6,7 @@ How the findings were obtained: a line-by-line review of every sketch, compiles 
 
 ## Executive summary
 
-- Every firmware runs, none is clean. Four of six sketches have real bugs: ADSR (three, fixed on branch `fix/adsr-bugs` and verified on the module), Euclidean (four), Turing Machine (three), PolyCrossClock (three). The Locking Sequencer has usability issues, the Template is fine but spreads the same boilerplate into every new firmware.
+- Every firmware runs, none is clean. Four of six sketches have real bugs: ADSR (three, fixed, verified on the module and merged in [PR #2](https://github.com/FrankNFT-labs/cascadence/pull/2)), Euclidean (four), Turing Machine (three), PolyCrossClock (three). The Locking Sequencer has usability issues, the Template is fine but spreads the same boilerplate into every new firmware.
 - The causes are structural, not individual mistakes: each sketch carries its own copy of the pin and DAC boilerplate, the DAC write is slow bit-banging, timing is blocking everywhere (`delay(40)` pulses, busy-waits on the clock input), and the board package compiles with all warnings off, so 18 warnings, including two "your init code never runs" bugs, were never seen.
 - Recommended path: fix bugs per firmware behind host tests, then extract a shared `Cascadence` library with a fast DAC write and non-blocking helpers, make the repository an Arduino sketchbook with CI, and only then do feature work.
 - Effort: about six focused working days in total, split into phases that each leave the repo in a releasable state. Main risks: timing changes alter how the envelopes and clocks feel, and the Turing quantizer needs a hardware measurement before it can be right.
@@ -15,7 +15,7 @@ How the findings were obtained: a line-by-line review of every sketch, compiles 
 
 | Firmware | Verdict | Main reason |
 |---|---|---|
-| ADSR | Promising but flawed | Sound envelope core; port bugs now fixed on a branch; timing is tied to loop speed and the knob taper crowds the useful range into the top of the travel |
+| ADSR | Promising but flawed | Sound envelope core; port bugs fixed in PR #2; timing is tied to loop speed and the knob taper crowds the useful range into the top of the travel |
 | Euclidean Sequencer | Promising but flawed | Pattern generator is correct for all 528 length/density pairs; the sequencing around it glitches every 32 clocks, never initialises the second channel, and fires B 40 ms after A |
 | Turing Machine | Promising but flawed | Register logic matches the original; output wraps instead of clipping, and the quantizer constant is for a prototype with a different output range |
 | PolyCrossClock | Promising but flawed | Good concept for the module; free-running divisions drift off the beat, the randomness knob wraps, and the docs describe another sketch |
@@ -28,7 +28,7 @@ Flash limit is 6012 bytes (8 KB minus the micronucleus bootloader), RAM is 512 b
 
 | Sketch | Last change | Lines | Flash | RAM | Warnings |
 |---|---|---|---|---|---|
-| ADSR | 25-10-2019 | 233 | 4366 (4254 on `fix/adsr-bugs`) | 103 (100) | 1, plus 2 that only clang reports (1) |
+| ADSR | 27-09-2026 | 206 | 4114 (4366 before PR #2) | 72 (103) | 0 (before PR #2: 1, plus 2 that only clang reported) |
 | Template | 30-09-2019 | 112 | 1026 | 18 | 0 |
 | LockingSequencer | 06-09-2019 | 116 | 1336 | 34 | 3 |
 | euclideansequencer | 09-09-2019 | 276 | 4508 | 49 | 7 |
@@ -48,19 +48,19 @@ Taken from `hardware/Cascadence-Schematic.pdf` and `software/CCTV/avr`.
 
 ## Findings per firmware
 
-Line numbers refer to the files as they are on `master`.
+Line numbers refer to the files as they are on `master`. The ADSR links point at the reviewed version (commit b6390ae), because PR #2 has changed that file since.
 
 ### ADSR
 
-Fixed on `fix/adsr-bugs` (pushed, no PR yet), items 1 and 2 each with a host test that failed before the fix:
+Fixed in PR #2, merged on 29-09-2026, items 1 and 2 each with a host test that failed before the fix:
 
-1. Pot scan slot 4 wrote past a 4-element stack array and past `lastanalogread`, where it overlapped the `millis()` counters ([ADSR.ino:177](firmware/ADSR/ADSR.ino#L177)).
-2. Unsigned threshold compare wrapped for readings below 5, so a knob parked at zero was copied into the other envelope on every toggle flip ([ADSR.ino:189](firmware/ADSR/ADSR.ino#L189)).
-3. Loop mode tested the `release_done` array itself, which is always true, and the upstream end-of-decay exit was missing, so enabling it hung the firmware ([ADSR.ino:114](firmware/ADSR/ADSR.ino#L114)). It was repaired first, then removed on 27-09-2026 together with `release_done`, because it had no panel control and the LFO use is out of scope. Flash went from 4366 to 4254 bytes.
+1. Pot scan slot 4 wrote past a 4-element stack array and past `lastanalogread`, where it overlapped the `millis()` counters ([ADSR.ino:177](https://github.com/FrankNFT-labs/cascadence/blob/b6390ae7c036aa3c369e67d43f6b8b86f140d007/firmware/ADSR/ADSR.ino#L177)).
+2. Unsigned threshold compare wrapped for readings below 5, so a knob parked at zero was copied into the other envelope on every toggle flip ([ADSR.ino:189](https://github.com/FrankNFT-labs/cascadence/blob/b6390ae7c036aa3c369e67d43f6b8b86f140d007/firmware/ADSR/ADSR.ino#L189)).
+3. Loop mode tested the `release_done` array itself, which is always true, and the upstream end-of-decay exit was missing, so enabling it hung the firmware ([ADSR.ino:114](https://github.com/FrankNFT-labs/cascadence/blob/b6390ae7c036aa3c369e67d43f6b8b86f140d007/firmware/ADSR/ADSR.ino#L114)). It was repaired first, then removed on 27-09-2026 together with `release_done`, because it had no panel control and the LFO use is out of scope. Flash went from 4366 to 4254 bytes.
 
 Remaining, in priority order:
 
-4. **Pots are not read while the gate is high.** The change detector runs outside the gate loop ([ADSR.ino:112](firmware/ADSR/ADSR.ino#L112)). With held notes, sustain and release changes only apply after the gate falls. Inherited from ADSRduino. Decision 27-09-2026: all four parameters stay live, as on an analog envelope. Reading the pots inside the gate loop is not enough on its own: the attack and decay constants are copied into `alpha` when a phase starts, and the sustain level into `drive` when decay starts. The fix must also update the phase in progress when its knob moves. The first-order filter turns each change into a glide, so no clicks.
+4. **Pots are not read while the gate is high.** The change detector runs outside the gate loop ([ADSR.ino:112](https://github.com/FrankNFT-labs/cascadence/blob/b6390ae7c036aa3c369e67d43f6b8b86f140d007/firmware/ADSR/ADSR.ino#L112)). With held notes, sustain and release changes only apply after the gate falls. Inherited from ADSRduino. Decision 27-09-2026: all four parameters stay live, as on an analog envelope. Reading the pots inside the gate loop is not enough on its own: the attack and decay constants are copied into `alpha` when a phase starts, and the sustain level into `drive` when decay starts. The fix must also update the phase in progress when its knob moves. The first-order filter turns each change into a glide, so no clicks.
 5. **Envelope times depend on loop speed.** One envelope step per loop pass, and the pass is dominated by two bit-banged DAC writes plus an ADC read, roughly 0.6 to 1 ms (estimate, not measured). Any code added to the loop retunes every envelope. Fix direction: a fixed tick from `micros()` or a timer, one state-machine step per tick.
 6. **Knob taper.** Over half the attack knob's travel gives a time constant under 10 passes; only the top 15 % gives more than 100. Full-clockwise release takes about 1.4 million passes to finish. Fix direction: exponential mapping from a chosen minimum to maximum time, computed only on knob change, which also lets `cos()` and `sqrt()` go.
 
@@ -132,7 +132,7 @@ Compiles clean. Problems are in what it teaches: the `tinySPI` include that cann
 - **`MOSI` and `SCK` as constant names** break the build on ATTinyCore, which defines them as macros. Only the repo's own package accepts the sketches as written.
 - **`setOutput` never clamps or masks.** Any value of 4096 or more corrupts the DAC control bits. Only the Turing Machine reaches that today, but a shared write should refuse it.
 - **Blocking timing everywhere.** `delay(40)` pulses and `while (clock low)` loops in four sketches. Every timing complaint above traces back to this.
-- **No tests, no CI.** The ADSR harness on `fix/adsr-bugs` is the first executable check in the repo.
+- **No tests, no CI.** The ADSR harness in `firmware/ADSR/test/` is the first executable check in the repo.
 - **Licensing is unverified.** The ADSR is based on m0xpd's ADSRduino and the Euclidean generator on Tom Whitwell's code. The repository has no LICENSE file. Check both upstream licences before publishing derived work.
 
 ## Architecture decisions
@@ -171,7 +171,7 @@ Compiles clean. Problems are in what it teaches: the `tinySPI` include that cann
 
 ```mermaid
 flowchart LR
-  P0["Phase 0 (done)<br/>ADSR fixes + harness<br/>fix/adsr-bugs"] --> P1["Phase 1<br/>Hygiene, all sketches"]
+  P0["Phase 0 (done)<br/>ADSR fixes + harness<br/>merged 29-09-2026"] --> P1["Phase 1<br/>Hygiene, all sketches"]
   P1 --> P2["Phase 2<br/>Bug fixes per firmware,<br/>test first"]
   P1 --> P4["Phase 4<br/>Shared fake board + CI"]
   P2 --> P3["Phase 3<br/>Cascadence library,<br/>repo as sketchbook"]
@@ -183,9 +183,9 @@ Each phase is one or more branches named `fix/...`, `feat/...` or `docs/...`, on
 
 ### Phase 0: ADSR fixes (done, verified on hardware)
 
-Branch `fix/adsr-bugs`: host test harness, the scan and threshold fixes, and the loop-mode removal.
+Merged into master through PR #2 on 29-09-2026: host test harness, the scan and threshold fixes, and the loop-mode removal.
 
-Status 29-09-2026: flashed onto the module with a USBasp (see `AGENTS.md`) and all four checks below passed. The branch is ready for its pull request.
+Status 29-09-2026: flashed onto the module with a USBasp (see `AGENTS.md`), and all four checks below passed before the merge.
 
 Hardware checklist before merging:
 
