@@ -42,7 +42,19 @@ make -C firmware/ADSR/test clean && make -C firmware/ADSR/test SANITIZERS=   # w
 
 There is no single-test filter: `main()` runs every `TEST` in its own forked process and prints PASS or FAIL per test, and the whole suite takes well under a second. Flags given on the make command line are not a build dependency, which is why the second line cleans first. The runner needs a POSIX system.
 
-To upload, follow `software/README.md` (board package plus micronucleus), click Upload in the Arduino IDE, then plug in the module's USB within 60 seconds. Do not connect USB and Eurorack power at the same time.
+To upload, build with `--output-dir` and write the hex over the 6-pin ISP header with a USBasp. This is the route for the owner's module, whose USB bootloader never worked: its reset vector skipped micronucleus, and its fuses disable self-programming.
+
+```bash
+ARDUINO_DIRECTORIES_USER=/tmp/cascadence-sketchbook arduino-cli compile --fqbn CCTV:avr:CCTV --output-dir /tmp/cascadence-build firmware/ADSR
+avrdude -c usbasp-clone -p t84 -U flash:w:/tmp/cascadence-build/ADSR.ino.hex:i
+```
+
+- Use `usbasp-clone`. The owner's clone reports its maker as "XWOPEN." instead of "www.fischl.de", so `-c usbasp` fails with "cannot find USB device". The board package defines no programmers, so the Arduino IDE cannot flash over ISP at all.
+- avrdude erases the whole chip first, bootloader included. Leave the fuses alone: lfuse 0xE2, hfuse 0xDF, efuse 0xFF, which gives the 8 MHz internal clock the build assumes.
+- If the chip may hold firmware that is not in git, back it up first: `avrdude -c usbasp-clone -p t84 -U flash:r:backup.hex:i`.
+- The clone's old firmware prints "cannot set sck period" and "USB access errors detected". Both are harmless; success is "bytes of flash verified".
+
+Modules with a working bootloader can also use the micro-USB route in `software/README.md`: click Upload in the Arduino IDE, then plug in the module's USB within 60 seconds. Power the module from one source only, because USB, the programmer's 5 V and the Eurorack regulator all feed the same +5 V rail.
 
 ## Hardware facts the code depends on
 
@@ -53,6 +65,7 @@ To upload, follow `software/README.md` (board package plus micronucleus), click 
 - DAC: MCP4812, 10-bit (code comments say MCP4802 or MCP4822), bit-banged with `shiftOut` on data pin 6, clock pin 4 and chip select pin 5. The ATtiny's USI cannot drive it, because the data line sits on the USI input pin and chip select on its output pin, so `tinySPI` can never work here.
 - DAC frame built by `setOutput`: bit 15 channel (A=0, B=1), bit 13 gain (`GAIN_2` = 0 = 2x), bit 12 shutdown (`NO_SHTDWN` = 1 = output on), bits 11 to 0 data. A value of 4096 or more spills into the control bits; `setOutput` does not clamp.
 - Output stage: TL072 at gain 2, about 8.2 V full scale. Output A is the bottom-left jack and B the bottom-right one.
+- Programming header: a 6-pin AVR ISP header (`AVRISP` in the schematic) on the back, just above the micro-USB connector. Its VCC is the +5 V rail. Its SCK, MOSI and MISO lines are the DAC's clock, data and chip select (pins 4, 6 and 5), so under rack power the outputs can jump while a programmer talks to the chip.
 
 ## Code architecture
 
