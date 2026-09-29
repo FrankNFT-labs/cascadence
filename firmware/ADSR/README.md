@@ -17,6 +17,7 @@ Each stage is an exponential curve, fast at first and slower as it nears its tar
 | Right | Gate input |
 | Bottom left | Output A |
 | Bottom right | Output B |
+| Back of the module, above the micro-USB | Programming header |
 | Back of the module | Micro-USB |
 
 The module has no push buttons: the toggle is its only switch.
@@ -69,7 +70,11 @@ The bottom-left jack is envelope A and the bottom-right jack is envelope B. Both
 
 ### Micro-USB
 
-The micro-USB connector on the back is for uploading firmware, with the module disconnected from rack power. The steps are under [Uploading the firmware](#uploading-the-firmware).
+The micro-USB connector on the back is for uploading firmware, with the module disconnected from rack power. It needs a working USB bootloader on the module, and not every module has one. The steps are under [Uploading the firmware](#uploading-the-firmware).
+
+### Programming header
+
+The 6-pin header on the back, just above the micro-USB connector, is a standard AVR programming header. A USBasp plugged in here can upload firmware whether or not the bootloader works. The steps are under [With a USBasp](#with-a-usbasp).
 
 ## When settings take effect
 
@@ -85,10 +90,36 @@ The micro-USB connector on the back is for uploading firmware, with the module d
 
 ## Uploading the firmware
 
+You can upload over the micro-USB connector, which needs a working USB bootloader on the module, or with a USBasp programmer, which works on every module.
+
+### Over micro-USB
+
 1. Set up the Arduino IDE with the Cascadence board package and the micronucleus uploader, as described in [software/README.md](../../software/README.md).
 2. Open `ADSR.ino` from this folder and select the Cascadence board under Tools > Board.
 3. Disconnect the module from Eurorack power. The software README warns that connecting USB and rack power at the same time can cause over-current warnings on some computers.
 4. Click Upload. When the IDE asks for the device, plug the module's micro-USB into the computer. The uploader waits 60 seconds.
+
+If the uploader times out even though the module is plugged in, try another USB cable, because some cables only carry power. If it still times out after you have checked the setup in the software README, the module's bootloader is not working, and you need a USBasp.
+
+### With a USBasp
+
+A USBasp is a cheap AVR programmer. It writes the firmware straight into the chip through the programming header, so it does not need the bootloader. The Arduino IDE cannot drive it for this board, because the Cascadence board package defines no programmer, so the upload runs from a terminal.
+
+1. Install avrdude, for example with `brew install avrdude` on macOS.
+2. In the Arduino IDE, open `ADSR.ino`, select the Cascadence board and choose Sketch > Export Compiled Binary. The IDE saves `ADSR.ino.hex` in `build/CCTV.avr.CCTV/` inside this folder.
+3. Disconnect the module from Eurorack power, as for micro-USB. The USBasp powers the module through the header.
+4. Connect the USBasp to the 6-pin header just above the micro-USB connector, with pin 1 of the cable on the 1 printed on the board. A USBasp has a 10-pin connector, so you need a 10-to-6-pin adapter.
+5. In a terminal, from this folder, run:
+
+   ```bash
+   avrdude -c usbasp-clone -p t84 -U flash:w:build/CCTV.avr.CCTV/ADSR.ino.hex:i
+   ```
+
+The upload worked if avrdude reports "bytes of flash verified". Clones with old firmware also print "cannot set sck period" and "USB access errors detected"; both are harmless.
+
+Use `usbasp-clone` even with an original USBasp. The plain `usbasp` setting only accepts programmers that report the original maker's name, and some clones report a different one.
+
+avrdude erases the whole chip before it writes, and that includes the USB bootloader. After that, only a programmer can update the module, until you reinstall the bootloader as described in [firmware/bootloader](../bootloader/README.md).
 
 ## How it works
 
