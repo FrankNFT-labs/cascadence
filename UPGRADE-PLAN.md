@@ -2,7 +2,7 @@
 
 Date: 26-09-2026. Scope: the six sketches in `firmware/`, the board package in `software/CCTV`, and `firmware/README.MD`.
 
-How the findings were obtained: a line-by-line review of every sketch, compiles of every sketch with the repo's own board package (flash and RAM figures below) and with avr-gcc warnings enabled, host-side runs of the ADSR, Euclidean and PolyCrossClock logic against a fake board, and the schematic in `hardware/`. Apart from a first run of the fixed ADSR and the toggle direction, both checked on 29-09-2026, nothing in this document has been verified on the module yet; each phase ends with a hardware checklist.
+How the findings were obtained: a line-by-line review of every sketch, compiles of every sketch with the repo's own board package (flash and RAM figures below) and with avr-gcc warnings enabled, host-side runs of the ADSR, Euclidean and PolyCrossClock logic against a fake board, and the schematic in `hardware/`. Apart from the phase 0 hardware checks, whose status is recorded below, nothing in this document has been verified on the module yet; each phase ends with a hardware checklist.
 
 ## Executive summary
 
@@ -185,12 +185,12 @@ Each phase is one or more branches named `fix/...`, `feat/...` or `docs/...`, on
 
 Branch `fix/adsr-bugs`: host test harness, the scan and threshold fixes, and the loop-mode removal.
 
-Status 29-09-2026: flashed onto the module with a USBasp (see `AGENTS.md`) and played; the envelopes work, and the toggle check passed. The other three checks are still open.
+Status 29-09-2026: flashed onto the module with a USBasp (see `AGENTS.md`) and played; the envelopes work. The toggle and channel-independence checks passed; the other two are still open.
 
 Hardware checklist before merging:
 
 - [x] Flip the toggle left, turn the sustain knob well away from its current position and hold a gate: only output A (bottom left) should settle at the new level. If B does instead, left and right are swapped in the ADSR README and in `AGENTS.md`.
-- [ ] Park the sustain knob fully counter-clockwise on A, flip the toggle to B, confirm B's sustain does not change.
+- [x] Park the sustain knob fully counter-clockwise on A, flip the toggle to B, confirm B's sustain does not change.
 - [ ] Hold a long gate, confirm attack, decay and sustain on both outputs; release, confirm both fall to zero.
 - [ ] Leave the module running for 10 minutes with a sequencer clock, confirm no stuck output.
 
