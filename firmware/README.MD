@@ -44,7 +44,7 @@ Potentiometers from top to bottom:
 3. Scale - the range from the lowest to the highest voltage outputed. Fully clockwise is the max range, fully counter clockwise you get no output.
 4. Offset - Shifts the sequence up but preserving relationships
 
-Toggle Switch - Engages a Chromatic Quantizer. Right is quantized, Left is unquantized.
+Toggle Switch - Engages a Chromatic Quantizer. Left is quantized, Right is unquantized.
 
 A Output - The CV sequence output
 
@@ -63,7 +63,7 @@ Potentiometers from top to bottom:
 3. Cross - shifts the sequence right this number of steps. Scales from 1 to Length. 1 will play every division, 2 every other, etc
 4. Randomness - The likelyhood of a pulse state being inverted. At full counter-clockwise, 0 randomness is added. At full clockwise every pulse will be inverted (no pulse becomes pulse, pulse becomes no pulse). In between min and max, the sequence will change at every iteration. The 'coin' is flipped every time a pulse is about to be sent out.
 
-Toggle Switch - Engages a Division Quantizer. Right is quantized, Left is unquantized.
+Toggle Switch - Engages a Division Quantizer. Left is quantized, Right is unquantized.
 
 A Output - Clock Trigger
 
