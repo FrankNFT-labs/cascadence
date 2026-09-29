@@ -2,7 +2,7 @@
 
 Date: 26-09-2026. Scope: the six sketches in `firmware/`, the board package in `software/CCTV`, and `firmware/README.MD`.
 
-How the findings were obtained: a line-by-line review of every sketch, compiles of every sketch with the repo's own board package (flash and RAM figures below) and with avr-gcc warnings enabled, host-side runs of the ADSR, Euclidean and PolyCrossClock logic against a fake board, and the schematic in `hardware/`. Apart from a first run of the fixed ADSR on 29-09-2026, nothing in this document has been verified on the module yet; each phase ends with a hardware checklist.
+How the findings were obtained: a line-by-line review of every sketch, compiles of every sketch with the repo's own board package (flash and RAM figures below) and with avr-gcc warnings enabled, host-side runs of the ADSR, Euclidean and PolyCrossClock logic against a fake board, and the schematic in `hardware/`. Apart from a first run of the fixed ADSR and the toggle direction, both checked on 29-09-2026, nothing in this document has been verified on the module yet; each phase ends with a hardware checklist.
 
 ## Executive summary
 
@@ -43,7 +43,7 @@ Taken from `hardware/Cascadence-Schematic.pdf` and `software/CCTV/avr`.
 - **DAC:** MCP4812, which is 10-bit. Comments in the sketches say MCP4802 or MCP4822. The 12-bit frame the sketches send is right for the whole family; the DAC ignores the bottom two data bits.
 - **DAC wiring rules out hardware SPI.** The DAC's data-in is on PA6, which is the USI's data-in pin, and chip select sits on PA5, the USI's data-out pin. The USI can only transmit on PA5, so `tinySPI` cannot drive this DAC. Every sketch includes `tinySPI.h` and none calls it; the README's "they rely on tinySPI" is wrong. Bit-banging is the only option, and direct port writes make it roughly ten times faster than `shiftOut`.
 - **Clock/gate input:** an NPN inverter with the LED in its collector. PB2 reads LOW while the jack is high. Every sketch handles this correctly.
-- **Toggle:** SPDT between +5 V and ground on PA7, so no pull-up is needed. HIGH means "A", "quantized" or "synced" in every sketch.
+- **Toggle:** SPDT between +5 V and ground on PA7, so no pull-up is needed. HIGH means "A", "quantized" or "synced" in every sketch. The lever's left side reads HIGH, verified on the module on 29-09-2026.
 - **Output stage:** TL072 non-inverting stage with two 10 k resistors, so gain 2 and roughly 8.2 V full scale from the DAC's 4.096 V. The product page says 0 to 10 V. Measure the real full scale before calibrating anything in volts; the Turing quantizer depends on it.
 
 ## Findings per firmware
@@ -185,14 +185,14 @@ Each phase is one or more branches named `fix/...`, `feat/...` or `docs/...`, on
 
 Branch `fix/adsr-bugs`: host test harness, the scan and threshold fixes, and the loop-mode removal.
 
-Status 29-09-2026: flashed onto the module with a USBasp (see `AGENTS.md`) and played; the envelopes work. None of the checks below has been done yet.
+Status 29-09-2026: flashed onto the module with a USBasp (see `AGENTS.md`) and played; the envelopes work, and the toggle check passed. The other three checks are still open.
 
 Hardware checklist before merging:
 
-- Flip the toggle left, turn the sustain knob well away from its current position and hold a gate: only output A (bottom left) should settle at the new level. If B does instead, left and right are swapped in the ADSR README and in `AGENTS.md`.
-- Park the sustain knob fully counter-clockwise on A, flip the toggle to B, confirm B's sustain does not change.
-- Hold a long gate, confirm attack, decay and sustain on both outputs; release, confirm both fall to zero.
-- Leave the module running for 10 minutes with a sequencer clock, confirm no stuck output.
+- [x] Flip the toggle left, turn the sustain knob well away from its current position and hold a gate: only output A (bottom left) should settle at the new level. If B does instead, left and right are swapped in the ADSR README and in `AGENTS.md`.
+- [ ] Park the sustain knob fully counter-clockwise on A, flip the toggle to B, confirm B's sustain does not change.
+- [ ] Hold a long gate, confirm attack, decay and sustain on both outputs; release, confirm both fall to zero.
+- [ ] Leave the module running for 10 minutes with a sequencer clock, confirm no stuck output.
 
 ### Phase 1: Hygiene across all sketches
 

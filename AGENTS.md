@@ -60,7 +60,7 @@ Modules with a working bootloader can also use the micro-USB route in `software/
 
 - ATtiny84 at 8 MHz: `int` is 16 bits, `double` is the same 4-byte type as `float`, and there is no hardware multiplier.
 - Pots: ADC channels 0 to 3, top to bottom.
-- Toggle: pin 7, wired SPDT between +5 V and ground. Which lever side reads HIGH is not verified on hardware: `firmware/ADSR/README.md` says left, derived from the PCB, while the Turing Machine entry in `firmware/README.MD` implies right.
+- Toggle: pin 7, wired SPDT between +5 V and ground. The lever's left side reads HIGH, verified on the module on 29-09-2026: in the ADSR, left edits envelope A. Every sketch treats HIGH as "A", "quantized" or "synced", so left selects those.
 - Clock or gate input: pin 8, behind an NPN inverter, so it reads LOW while the jack is high. The LED sits in the transistor's collector and is not firmware-driven. The ADSR names this pin both `CLK_IN` and `gatePin`.
 - DAC: MCP4812, 10-bit (code comments say MCP4802 or MCP4822), bit-banged with `shiftOut` on data pin 6, clock pin 4 and chip select pin 5. The ATtiny's USI cannot drive it, because the data line sits on the USI input pin and chip select on its output pin, so `tinySPI` can never work here.
 - DAC frame built by `setOutput`: bit 15 channel (A=0, B=1), bit 13 gain (`GAIN_2` = 0 = 2x), bit 12 shutdown (`NO_SHTDWN` = 1 = output on), bits 11 to 0 data. A value of 4096 or more spills into the control bits; `setOutput` does not clamp.
