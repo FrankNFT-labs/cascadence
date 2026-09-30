@@ -4,6 +4,7 @@
 // a pulse on B. With the toggle left, the CV snaps to semitones.
 
 #include <algorithm>
+#include <cmath>
 #include <set>
 
 #include "test_runner.h"
@@ -54,6 +55,16 @@ void run_clocks(int clocks) {
 
 long distinct(const std::vector<unsigned> &values) {
   return std::set<unsigned>(values.begin(), values.end()).size();
+}
+
+// The quantizer's grid: 1 V per octave on outputs whose 4096 codes span
+// 8.192 V, the DAC's 4.096 V doubled by the output stage, so a semitone is
+// 4096 / (8.192 * 12) = 41.67 codes, rounded to the nearest code.
+const double CODES_PER_SEMITONE = 4096 / (8.192 * 12);
+
+bool on_a_semitone(unsigned value) {
+  long semitone = std::lround(value / CODES_PER_SEMITONE);
+  return static_cast<long>(value) == std::lround(semitone * CODES_PER_SEMITONE);
 }
 
 TEST(randomness_fully_counter_clockwise_inverts_the_loop_so_it_repeats_every_twice_the_length) {
@@ -141,8 +152,26 @@ TEST(with_the_toggle_left_every_cv_step_is_a_whole_number_of_semitones) {
   run_clocks(8);
   std::vector<unsigned> cv = fake::values_written_while_clock_high(A);
   EXPECT_EQ(cv.size(), 8);
-  for (unsigned value : cv) EXPECT_EQ(value % BITSPERSEMITONE, 0);
+  for (unsigned value : cv) EXPECT_EQ(on_a_semitone(value), true);
   EXPECT_AT_LEAST(distinct(cv), 2);
+}
+
+TEST(with_the_toggle_left_a_one_semitone_scale_steps_by_one_twelfth_of_a_volt) {
+  set_up(ALWAYS_FLIP, 1, 11, 0, true);  // a one-bit register, scaled to 44 codes: just over a semitone
+  fake::boot();
+  run_clocks(8);
+  std::vector<unsigned> cv = fake::values_written_while_clock_high(A);
+  EXPECT_EQ(std::set<int>(cv.begin(), cv.end()), std::set<int>({0, 42}));
+}
+
+TEST(with_the_toggle_left_and_scale_and_offset_both_full_the_cv_stays_on_semitones_below_the_top) {
+  set_up(ALWAYS_FLIP, 4, 1023, 1023, true);
+  fake::boot();
+  run_clocks(16);
+  std::vector<unsigned> cv = fake::values_written_while_clock_high(A);
+  EXPECT_EQ(cv.size(), 16);
+  for (unsigned value : cv) EXPECT_EQ(on_a_semitone(value), true);
+  EXPECT_EQ(*std::max_element(cv.begin(), cv.end()), 4083);  // semitone 98, the highest below 4096 codes
 }
 
 }  // namespace

@@ -32,11 +32,12 @@ boolean pulsing;
 
 unsigned int maxvalues[]={0,1,3,7,15,31,63,127,255,511,1023,2047,4095,8191,16383,32767,65535};  //max posible values for a given bit length
 
-const int BITSPERSEMITONE=83;
+const long SEMITONE_X3=125;  //three semitones in DAC codes, so the quantizer's arithmetic stays in whole numbers
 
 //for quantizer, 83.33 mV per semitone
-//On prototype, max output is 4.096V - needs adjusting for final release
-//for 12 bit output, math is nice - 83 bits per semitone
+//On prototype, max output is 4.096V, so 83 codes per semitone
+//On the final release, the output stage doubles the DAC's 4.096 V to 8.192 V,
+//so a semitone is 4096 / (8.192 * 12) = 125/3 codes, about 41.67
 //
 void setup()
 {
@@ -66,7 +67,7 @@ void setup()
 void loop() {
 boolean lastbit;
 unsigned int outputvalue;
-unsigned int leftover;
+long semitone;
 boolean clockwashigh = false;
 while(1)
 {
@@ -91,12 +92,8 @@ while(1)
 
       if(digitalRead(SW)) //Quantizer is on
       {
-        leftover = outputvalue % BITSPERSEMITONE;
-        if(leftover>41) //note is closest to the one above it
-            outputvalue = outputvalue+BITSPERSEMITONE-leftover;
-
-        else // or we're closer to the one below it
-          outputvalue = outputvalue-leftover;
+        semitone = (outputvalue*3L + SEMITONE_X3/2) / SEMITONE_X3;  //the nearest semitone
+        outputvalue = (semitone*SEMITONE_X3 + 1) / 3;  //back to DAC codes, rounded to the nearest
       }
 
       setOutput(A, GAIN_2, NO_SHTDWN, outputvalue);  //the CV first, so it is in place when the pulse starts
