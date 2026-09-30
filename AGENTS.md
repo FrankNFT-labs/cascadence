@@ -42,6 +42,8 @@ make -C firmware/test clean && make -C firmware/test SANITIZERS=  # without the 
 
 The harness compiles the sketches with GCC, as the firmware is: clang rejects `updatevalues[A];` in the Euclidean and Turing Machine, which avr-gcc only warns about. The Makefile picks the newest `g++-NN` on the path, then `g++`, and accepts only a real GCC (on macOS, `brew install gcc`). GCC on macOS has no UBSan runtime, so there the sanitizer runs in trap mode and the runner reports undefined behaviour without naming it; GCC on Linux names it. There is no single-test filter: each binary runs every `TEST` in its own forked process and prints PASS or FAIL per test. Flags given on the make command line are not a build dependency, which is why the last line cleans first. The runner needs a POSIX system.
 
+CI (`.github/workflows/firmware.yml`) runs on every push to master and every pull request: it builds every sketch with the repo board package, which fails a sketch above 6012 bytes, and runs `make -C firmware/test` with GCC on Ubuntu, where UBSan names what it finds.
+
 To upload, build with `--output-dir` and write the hex over the 6-pin ISP header with a USBasp. This is the route for the owner's module, whose USB bootloader never worked: its reset vector skipped micronucleus, and its fuses disable self-programming.
 
 ```bash
@@ -96,6 +98,8 @@ Timing is mostly blocking. The Locking Sequencer, Euclidean and Turing Machine b
 2. The ATTinyCore warnings build is clean.
 3. `make -C firmware/test` passes.
 4. Anything touching timing, voltages or panel behaviour gets the hardware checklist of its phase in `UPGRADE-PLAN.md`. Host tests model the board but not its timing or analog stages.
+
+CI runs 1 and 3 on every pull request; 2 and 4 stay manual.
 
 ## Documentation that tracks the code
 

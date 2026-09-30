@@ -1,0 +1,41 @@
+# Builds every sketch with the repo's own board package and runs the host tests.
+name: firmware
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: arduino/setup-arduino-cli@81d310742121c928ea9c8bbd407b4217b432ae02 # v2.0.0
+        with:
+          version: 1.5.1
+
+      - name: Install the arduino:avr core the board package builds on
+        run: |
+          arduino-cli core update-index
+          arduino-cli core install arduino:avr@1.8.8
+
+      - name: Build every sketch, which fails above 6012 bytes of flash
+        run: |
+          sketchbook="$RUNNER_TEMP/sketchbook"
+          mkdir -p "$sketchbook/hardware"
+          cp -R software/CCTV "$sketchbook/hardware/"
+          for sketch in firmware/*/*.ino; do
+            echo "::group::$sketch"
+            ARDUINO_DIRECTORIES_USER="$sketchbook" arduino-cli compile --fqbn CCTV:avr:CCTV "$(dirname "$sketch")"
+            echo "::endgroup::"
+          done
+
+      - name: Run the host tests
+        run: make -C firmware/test
