@@ -3,6 +3,7 @@
 // register's value, scaled and offset, is the CV on A, and recycling a 1 sends
 // a pulse on B. With the toggle left, the CV snaps to semitones.
 
+#include <algorithm>
 #include <set>
 
 #include "test_runner.h"
@@ -81,6 +82,16 @@ TEST(with_scale_at_zero_the_offset_alone_sets_the_cv) {
   fake::boot();
   run_clocks(8);
   EXPECT_EQ(fake::values_written_while_clock_high(A), std::vector<unsigned>(8, 2047));
+}
+
+TEST(with_scale_and_offset_both_full_the_cv_pins_at_the_top_instead_of_wrapping) {
+  set_up(ALWAYS_FLIP, 4, 1023, 1023, false);
+  fake::boot();
+  run_clocks(16);
+  std::vector<unsigned> cv = fake::values_written_while_clock_high(A);
+  EXPECT_EQ(cv.size(), 16);
+  for (unsigned value : cv) EXPECT_AT_LEAST(value, 2047);  // never below the offset
+  EXPECT_EQ(*std::max_element(cv.begin(), cv.end()), fake::FULL_SCALE);
 }
 
 TEST(a_clock_already_high_at_power_up_plays_its_step_with_the_knob_settings) {

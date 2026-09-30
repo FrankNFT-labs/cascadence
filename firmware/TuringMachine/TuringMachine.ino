@@ -82,6 +82,8 @@ while(1)
       outputvalue = sequence & maxvalues[seq_length];
       outputvalue = map(outputvalue,0,maxvalues[seq_length],0,seq_scale);
       outputvalue = outputvalue+seq_shift;
+      if(outputvalue>4095)  //scale plus offset can reach 6142; the DAC takes 12 bits, and more would wrap
+        outputvalue = 4095;
 
       if(digitalRead(SW)) //Quantizer is on
       {
