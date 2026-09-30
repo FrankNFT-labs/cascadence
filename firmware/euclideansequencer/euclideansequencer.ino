@@ -221,10 +221,11 @@ void updatevalues(boolean chan)
     values[chan][x]=analogRead(POTS[x]);  //read the 4 pots so we don't have junk for the first sequence
   }
 
-  seq_length[chan]=map(values[chan][0],0,1023,1,MAXSTEPLENGTH+1);
-  seq_density[chan]=map(values[chan][1],0,1023,1,seq_length[chan]);
-  seq_offset[chan]=map(values[chan][2],0,1023,0,seq_length[chan]);
-  seq_randomness[chan]=map(values[chan][3],0,1023,0,MAXSTEPLENGTH);
+  //map(reading,0,1024,lowest,highest+1) gives each value from lowest to highest an equal share of the knob's travel
+  seq_length[chan]=map(values[chan][0],0,1024,1,MAXSTEPLENGTH+2);
+  seq_density[chan]=map(values[chan][1],0,1024,1,seq_length[chan]+1);
+  seq_offset[chan]=map(values[chan][2],0,1024,0,seq_length[chan]);
+  seq_randomness[chan]=map(values[chan][3],0,1024,0,MAXSTEPLENGTH+1);
 
   if(seq_density[chan]>seq_length[chan])
     seq_density[chan]=seq_length[chan];

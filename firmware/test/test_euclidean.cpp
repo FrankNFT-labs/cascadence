@@ -32,11 +32,17 @@ const uint64_t FIRST_CLOCK = 50 * fake::MS;
 const uint64_t CLOCK_PERIOD = 100 * fake::MS;  // room for two blocking 40 ms pulses, A then B
 const uint64_t CLOCK_WIDTH = 5 * fake::MS;
 
+// The sketch scales each knob with map(reading, 0, 1024, lowest, highest + 1),
+// which gives each value from lowest to highest an equal share of the travel.
 void set_rhythm(int pulses, int steps) {
-  board.pot[LENGTH] = fake::knob_for(steps, 1, MAXSTEPLENGTH + 1);
-  board.pot[DENSITY] = fake::knob_for(pulses, 1, steps);
+  board.pot[LENGTH] = fake::knob_for(steps, 1, MAXSTEPLENGTH + 2, 1024);  // 1 to 32 steps
+  board.pot[DENSITY] = fake::knob_for(pulses, 1, steps + 1, 1024);
   board.pot[OFFSET] = 0;
 }
+
+// 31 counts below the end of the travel: inside the top value's share on
+// every knob, because no knob has more than 32 values.
+const int NEAR_THE_TOP = 1023 - 31;
 
 // Clocks the sketch `clocks` times. loop() never returns, so this is the
 // test's only run: schedule knob and toggle changes before calling it.
@@ -136,6 +142,44 @@ TEST(a_five_step_rhythm_keeps_its_cycle_past_the_thirty_second_clock) {
   cycles.resize(64);
   EXPECT_EQ(steps_with_pulses(A, 64), cycles);
   EXPECT_EQ(steps_with_pulses(B, 64), cycles);
+}
+
+TEST(the_length_knob_reaches_thirty_two_steps_before_the_end_of_its_travel) {
+  board.pot[LENGTH] = NEAR_THE_TOP;
+  board.pot[DENSITY] = 0;  // one pulse
+  board.pot[OFFSET] = 0;
+  board.pot[RANDOMNESS] = 0;
+  fake::boot();
+  run_clocks(64);
+  std::string one_pulse_in_32 = "x" + std::string(31, '.');
+  EXPECT_EQ(steps_with_pulses(A, 64), one_pulse_in_32 + one_pulse_in_32);
+}
+
+TEST(the_density_knob_reaches_a_pulse_on_every_step_before_the_end_of_its_travel) {
+  set_rhythm(1, 8);
+  board.pot[DENSITY] = NEAR_THE_TOP;
+  board.pot[RANDOMNESS] = 0;
+  fake::boot();
+  run_clocks(8);
+  EXPECT_EQ(steps_with_pulses(A, 8), "xxxxxxxx");
+}
+
+TEST(the_offset_knob_fully_clockwise_plays_each_pulse_one_step_later) {
+  set_rhythm(3, 8);
+  board.pot[OFFSET] = 1023;  // offset 7 of 8: seven steps earlier is one step later
+  board.pot[RANDOMNESS] = 0;
+  fake::boot();
+  run_clocks(8);
+  EXPECT_EQ(steps_with_pulses(A, 8), ".x..x..x");
+}
+
+TEST(the_randomness_knob_reaches_every_step_inverted_before_the_end_of_its_travel) {
+  board.random_below = [](long howbig) { return howbig - 1; };  // the draw least likely to invert a step
+  set_rhythm(3, 8);
+  board.pot[RANDOMNESS] = NEAR_THE_TOP;
+  fake::boot();
+  run_clocks(8);
+  EXPECT_EQ(steps_with_pulses(A, 8), inverted("x..x..x."));
 }
 
 TEST(randomness_fully_counter_clockwise_inverts_no_step) {
