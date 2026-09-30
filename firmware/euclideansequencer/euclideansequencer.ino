@@ -22,7 +22,8 @@ const int DAC_SCK = 4;
 const int PIN_CS = 5;
 
 const int THRESHOLD = 5;  //dead band for the knobs in ADC counts, as in the ADSR
-int values[2][4] = {{-100,-100,-100,-100},{-100,-100,-100,-100}};  //the readings each output took last; far from any reading at first, so setup() takes them all
+int lastread[4];  //each knob's reading when it last moved; a move edits only the output the toggle selects, as in the ADSR
+int values[2][4];  //the knob readings each output took
 const int A = 0;
 const int B = 1;
 long int euclids[2];
@@ -37,7 +38,7 @@ unsigned long pulsestart[2];  //when each output's pulse started, from micros()
 boolean pulsing[2];
 void setup()
 {
-
+  unsigned char x;
 
   pinMode(POTS[0], INPUT);
   pinMode(POTS[1], INPUT);
@@ -56,8 +57,14 @@ void setup()
   pinMode(PIN_CS, OUTPUT);
 
 
-  updatevalues(A);
-  updatevalues(B);
+  for(x=0;x<4;x++)  //both outputs start from the knobs
+  {
+    lastread[x]=analogRead(POTS[x]);
+    values[A][x]=lastread[x];
+    values[B][x]=lastread[x];
+  }
+  setpattern(A);
+  setpattern(B);
   
 }
 
@@ -226,9 +233,10 @@ void updatevalues(boolean chan)
    for(x=0;x<4;x++)
   {
     reading=analogRead(POTS[x]);
-    if(reading<values[chan][x]-THRESHOLD || reading>values[chan][x]+THRESHOLD)  //ignore smaller changes, so a knob at the edge of a step cannot flicker
+    if(reading<lastread[x]-THRESHOLD || reading>lastread[x]+THRESHOLD)  //ignore smaller changes, so a knob at the edge of a step cannot flicker
     {
-      values[chan][x]=reading;
+      lastread[x]=reading;
+      values[chan][x]=reading;  //a turned knob edits only the output the toggle selects; a flip alone changes nothing
       moved=true;
     }
   }

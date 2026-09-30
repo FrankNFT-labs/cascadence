@@ -115,6 +115,29 @@ TEST(knobs_edit_only_the_output_the_toggle_selects) {
   EXPECT_EQ(steps_with_pulses(B, 8), "xxxxxxxx");
 }
 
+TEST(flipping_the_toggle_changes_neither_output) {
+  set_rhythm(3, 8);
+  board.pot[RANDOMNESS] = 0;
+  fake::boot();  // toggle left: both outputs start at three pulses over eight steps
+  fake::at(FIRST_CLOCK / 2, [] { set_rhythm(5, 8); });  // A takes five over eight
+  fake::at(FIRST_CLOCK * 3 / 4, [] { board.toggle_left = false; });  // flip to B, knobs untouched
+  run_clocks(8);
+  EXPECT_EQ(steps_with_pulses(A, 8), "x.xx.xx.");
+  EXPECT_EQ(steps_with_pulses(B, 8), "x..x..x.");
+}
+
+TEST(a_knob_turned_after_a_flip_changes_only_its_own_setting_of_the_selected_output) {
+  set_rhythm(3, 8);
+  board.pot[RANDOMNESS] = 0;
+  fake::boot();  // toggle left: both outputs start at three pulses over eight steps
+  fake::at(FIRST_CLOCK / 4, [] { set_rhythm(5, 16); });  // A takes five over sixteen
+  fake::at(FIRST_CLOCK / 2, [] { board.toggle_left = false; });  // flip to B
+  fake::at(FIRST_CLOCK * 3 / 4, [] { board.pot[DENSITY] = 0; });  // one pulse, over B's own eight steps
+  run_clocks(16);
+  EXPECT_EQ(steps_with_pulses(A, 16), "x..x..x..x..x...");
+  EXPECT_EQ(steps_with_pulses(B, 16), "x.......x.......");
+}
+
 TEST(both_outputs_play_their_rhythm_from_the_first_clock_without_a_toggle_flip) {
   set_rhythm(3, 8);
   board.pot[RANDOMNESS] = 0;
