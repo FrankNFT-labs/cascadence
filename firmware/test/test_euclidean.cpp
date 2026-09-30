@@ -126,6 +126,18 @@ TEST(at_offset_zero_each_cycle_starts_on_a_pulse) {
   EXPECT_EQ(steps_with_pulses(B, 16), "x.xx.xx.x.xx.xx.");  // the cinquillo
 }
 
+TEST(a_five_step_rhythm_keeps_its_cycle_past_the_thirty_second_clock) {
+  set_rhythm(2, 5);
+  board.pot[RANDOMNESS] = 0;
+  fake::boot();
+  run_clocks(64);
+  std::string cycles;
+  while (cycles.size() < 64) cycles += "x.x..";
+  cycles.resize(64);
+  EXPECT_EQ(steps_with_pulses(A, 64), cycles);
+  EXPECT_EQ(steps_with_pulses(B, 64), cycles);
+}
+
 TEST(randomness_fully_counter_clockwise_inverts_no_step) {
   board.random_below = [](long) { return 0L; };  // the draw most likely to invert a step
   set_rhythm(3, 8);

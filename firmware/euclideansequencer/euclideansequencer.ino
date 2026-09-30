@@ -25,7 +25,7 @@ unsigned int values[2][4];
 const int A = 0;
 const int B = 1;
 long int euclids[2];
-unsigned char stepnumber=0;
+unsigned char stepnumber[2];  //each output counts through its own rhythm, 0 to its length - 1
 unsigned char offset_stepnumber[2];
 unsigned char seq_length[2];
 unsigned char seq_offset[2];
@@ -65,11 +65,11 @@ while(1)
   if(digitalRead(CLK_IN) == LOW)  //we've received a clock pulse!
     {
       //calculate the actual step number for each sequencer
-      offset_stepnumber[A]=stepnumber+seq_offset[A];
+      offset_stepnumber[A]=stepnumber[A]+seq_offset[A];
       if(offset_stepnumber[A]>=seq_length[A])
         offset_stepnumber[A]=offset_stepnumber[A] % seq_length[A];
         
-      offset_stepnumber[B]=stepnumber+seq_offset[B];
+      offset_stepnumber[B]=stepnumber[B]+seq_offset[B];
       if(offset_stepnumber[B]>=seq_length[B])
         offset_stepnumber[B]=offset_stepnumber[B] % seq_length[B];
       
@@ -90,11 +90,12 @@ while(1)
       if(pulse == 1)
         SendPulse(B); //send one
       
-      stepnumber++;
-      if(stepnumber>MAXSTEPLENGTH)
-      {
-        stepnumber = 0;
-      }
+      stepnumber[A]++;
+      if(stepnumber[A]>=seq_length[A])
+        stepnumber[A] = 0;
+      stepnumber[B]++;
+      if(stepnumber[B]>=seq_length[B])
+        stepnumber[B] = 0;
       while(digitalRead(CLK_IN) == LOW);
       
     }
