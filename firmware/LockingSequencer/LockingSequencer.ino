@@ -51,7 +51,6 @@ void setup()
 
 void loop() {
   int step = 0;
-  unsigned int tempanalog;
   int counter = 0;
   unsigned int currentoutput[2];
   while(1)

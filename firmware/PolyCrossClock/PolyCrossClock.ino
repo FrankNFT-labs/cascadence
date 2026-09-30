@@ -37,7 +37,6 @@ unsigned int values[4]; //Global array to store potentiometer values
 
 /// Clock Sketch Specific
 byte switchValue = 0;
-unsigned int previousValues[4];
 
 // 1000 micro seconds in a millisecond => 1 000 000 micros in a second
 unsigned long now;
@@ -47,7 +46,6 @@ unsigned long pulseOff;
 unsigned long pulseDur = 40000;
 boolean didPulse = true;
 
-unsigned long divisionTick;
 unsigned long nextDivisionTick;
 unsigned long divisionDur;
 unsigned long divisionPulseOff;   
@@ -57,7 +55,6 @@ boolean divisionPulse = true;
 unsigned char cross = 1;
 float divisions = 1.0;
 unsigned char randomness = 0;
-unsigned char stepnumber = 0;
 
 boolean sync; 
 
@@ -143,9 +140,6 @@ void updatevalues(void){
   }
 
   switchValue = sync;
-  for (x = 0; x < 4; x++){
-    previousValues[x] = values[x];
-  }
 }
 
 void setOutput(byte channel, byte gain, byte shutdown, unsigned int val){

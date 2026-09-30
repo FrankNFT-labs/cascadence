@@ -22,8 +22,6 @@ unsigned int values[4];
 const int A = 0;
 const int B = 1;
 unsigned int sequence = 0;
-unsigned char stepnumber=0;
-unsigned char offset_stepnumber[2];
 unsigned char seq_length;
 char seq_randomness;
 unsigned int seq_scale;
@@ -64,7 +62,6 @@ void setup()
 }
 
 void loop() {
-int pulse = false;
 boolean lastbit;
 unsigned int outputvalue;
 unsigned int leftover;

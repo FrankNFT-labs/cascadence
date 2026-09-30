@@ -115,7 +115,6 @@ uint64_t euclid(int n, int k){ // inputs: n=total, k=beats, o = offset
   int remainder = pauses%pulses;  
   long int workbeat[n];
   long int outbeat;
-  long int working;
   int workbeat_count=n;
   int a; 
   int b; 
