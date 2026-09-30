@@ -1,9 +1,9 @@
 #include "fake_board.h"
 
-#include <random>
 #include <string>
 
 #include "fake_arduino.h"
+#include "avr/eeprom.h"
 
 // Defined by the sketch that each test binary includes.
 void setup();
@@ -143,12 +143,33 @@ unsigned long millis() {
   return board.now_us / fake::MS;
 }
 
-// Arduino's own definitions from WMath.cpp, with a fixed pseudo-random sequence.
+namespace {
+
+// avr-libc's random(): the Park-Miller minimal standard generator, in the
+// module's 32-bit arithmetic, so a seed gives the sequence the module draws.
+uint32_t random_state = 1;
+
+long avr_libc_random() {
+  int32_t x = static_cast<int32_t>(random_state);
+  if (x == 0) x = 123459876;  // avr-libc's stand-in for a state of zero
+  int32_t hi = x / 127773, lo = x % 127773;
+  x = 16807 * lo - 2836 * hi;
+  if (x < 0) x += 0x7fffffff;
+  random_state = static_cast<uint32_t>(x);
+  return x;
+}
+
+}  // namespace
+
+// Arduino's own definitions from WMath.cpp.
+void randomSeed(unsigned long seed) {
+  if (seed != 0) random_state = static_cast<uint32_t>(seed);
+}
+
 long random(long howbig) {
   if (howbig == 0) return 0;
   if (board.random_below) return board.random_below(howbig);
-  static std::minstd_rand generator(1);
-  return static_cast<long>(generator()) % howbig;
+  return avr_libc_random() % howbig;
 }
 
 long random(long howsmall, long howbig) {
@@ -158,4 +179,34 @@ long random(long howsmall, long howbig) {
 
 long map(long x, long in_min, long in_max, long out_min, long out_max) {
   return (x - in_min) * (out_max - out_min) / (in_max - in_min) + out_min;
+}
+
+namespace {
+
+size_t eeprom_offset(const void *address) {
+  size_t offset = reinterpret_cast<uintptr_t>(address);
+  if (offset >= board.eeprom.size()) throw fake::TestFailure{"EEPROM access past the ATtiny84's 512 bytes"};
+  return offset;
+}
+
+// Like avr-libc, an EEPROM access first waits for a write in progress to finish.
+void wait_for_eeprom() {
+  if (board.now_us < board.eeprom_busy_until_us) fake::advance(board.eeprom_busy_until_us - board.now_us);
+}
+
+}  // namespace
+
+uint8_t eeprom_read_byte(const uint8_t *address) {
+  wait_for_eeprom();
+  return board.eeprom[eeprom_offset(address)];
+}
+
+// Starts a write only when the byte changes, and returns without waiting for
+// it to finish, as avr-libc does.
+void eeprom_update_byte(uint8_t *address, uint8_t value) {
+  wait_for_eeprom();
+  size_t offset = eeprom_offset(address);
+  if (board.eeprom[offset] == value) return;
+  board.eeprom[offset] = value;
+  board.eeprom_busy_until_us = board.now_us + board.eeprom_write_us;
 }

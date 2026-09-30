@@ -26,6 +26,8 @@ CXXFLAGS ?= -g -O0 -Wall -Wextra
 # The firmware build's dialect (avr-gcc 7.3 defaults to gnu++14), and a signed
 # char, as on the ATtiny: some hosts make char unsigned.
 override CXXFLAGS += -std=gnu++14 -fsigned-char
+# The stand-in for avr-libc's <avr/eeprom.h> lives in avr/ here.
+override CXXFLAGS += -I.
 
 # UndefinedBehaviorSanitizer with its runtime where the compiler has one (GCC on
 # Linux), which names each problem. Otherwise (GCC on macOS) trap mode, which
@@ -33,7 +35,7 @@ override CXXFLAGS += -std=gnu++14 -fsigned-char
 UBSAN_RUNTIME := $(shell echo 'int main() { return 0; }' | $(CXX) -x c++ -fsanitize=undefined -o /dev/null - >/dev/null 2>&1 && echo yes)
 SANITIZERS ?= -fsanitize=undefined $(if $(UBSAN_RUNTIME),-fno-sanitize-recover=undefined,-fsanitize-trap=undefined)
 
-SHARED := fake_board.cpp test_runner.cpp fake_arduino.h fake_board.h test_runner.h Makefile
+SHARED := fake_board.cpp test_runner.cpp fake_arduino.h fake_board.h test_runner.h avr/eeprom.h Makefile
 
 .PHONY: test clean
 

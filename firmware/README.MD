@@ -36,7 +36,7 @@ Toggle Switch - changes active editing of sequence A or B.
 
 ## Turing Machine
 
-Algorithmic Sequence generator with variable probability of mutation. Implemented here with a linked pulse output and optional quantizer.
+Algorithmic Sequence generator with variable probability of mutation. Implemented here with a linked pulse output and optional quantizer. Each power-up starts a new random sequence.
 
 Clock in - Trigger input
 
@@ -44,13 +44,13 @@ Potentiometers from top to bottom:
 1. Randomness - this is the big knob on the original TM. Fully clockwise and your loop is repeated, fully counter clockwise, and your loop is inverted creating a mirrored loop twice as long as the 'length' setting. In the middle is a 50% chance of mutation at every iteration
 2. Length - adjustable from 1 to 16. This is the number of bits in the shift register. The output is scaled to the bit length, and the output is taken from the available bits you have set here, for example if length is 3, you get a 3 bit output scaled to the full range of the output, limited by the 'Scale' setting.
 3. Scale - the range from the lowest to the highest voltage outputed. Fully clockwise is the max range, fully counter clockwise you get no output.
-4. Offset - Shifts the sequence up but preserving relationships
+4. Offset - Shifts the sequence up but preserving relationships. Where Scale and Offset together would go past the top of the output range, the CV stays at the top.
 
-Toggle Switch - Engages a Chromatic Quantizer. Left is quantized, Right is unquantized.
+Toggle Switch - Engages a Chromatic Quantizer, in semitones of 1/12 V for 1 V per octave. Left is quantized, Right is unquantized.
 
-A Output - The CV sequence output
+A Output - The CV sequence output, updated on every clock
 
-B Output - Sends a pulse if the LSB in the shift register is '1'. You can use this in conjunction with the CV sequence to create interesting patterns.
+B Output - Sends a 40 ms pulse if the LSB in the shift register is '1', just after the CV on A has changed. You can use this in conjunction with the CV sequence to create interesting patterns.
 
 
 ## PolyCrossClock
