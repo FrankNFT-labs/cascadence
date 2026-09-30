@@ -73,7 +73,13 @@ Modules with a working bootloader can also use the micro-USB route in `software/
 
 Every sketch is self-contained and carries its own copy of the board boilerplate: pin constants, DAC constants, `setOutput`, often `updatevalues` and `SendPulse`. A fix in one sketch never reaches the others. `firmware/Template/` is the starting point for a new firmware.
 
-Timing is mostly blocking. The Locking Sequencer, Euclidean and Turing Machine busy-wait on the clock input, and the latter two send pulses with a blocking `delay(40)`, as the Template's `SendPulse` teaches; only PolyCrossClock schedules from `micros()`. The ADSR advances its envelopes one step per pass of `loop()`, so envelope times depend on how long a pass takes, which is dominated by the two bit-banged DAC writes. Adding work to the loop retunes every envelope.
+Timing differs per sketch, and is mostly blocking:
+
+- Euclidean: busy-waits on the clock input and sends each pulse with a blocking `delay(40)`, as the Template's `SendPulse` teaches.
+- Locking Sequencer: busy-waits on the clock input.
+- Turing Machine: busy-waits on the clock input and sends its pulse with a blocking `delay(40)`.
+- PolyCrossClock: schedules its clocks from `micros()`.
+- ADSR: advances its envelopes one step per pass of `loop()`, so envelope times depend on how long a pass takes, which is dominated by the two bit-banged DAC writes. Adding work to the loop retunes every envelope.
 
 ### ADSR (`firmware/ADSR/ADSR.ino`)
 
