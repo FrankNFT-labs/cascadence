@@ -83,6 +83,7 @@ Remaining, in priority order:
 4. **B fires 40 ms after A.** Each pulse is a blocking 40 ms delay, and A is sent first ([euclideansequencer.ino:85](https://github.com/FrankNFT-labs/cascadence/blob/b6390ae7c036aa3c369e67d43f6b8b86f140d007/firmware/euclideansequencer/euclideansequencer.ino#L85)). When both channels hit on the same step, B is late by a 32nd note at 120 BPM, and two pulses block the loop for 80 ms, which caps the clock rate near 12 Hz.
 5. **No hysteresis on the pots.** The pattern is recomputed on every pass from raw readings, so length and density flicker at bin edges, and the generator with its 128-byte stack array runs continuously for nothing.
 6. Minor: `map()` gives its top value only at a reading of exactly 1023, so length 32 and full offset are one-count-wide bins; busy-wait on the clock input blocks pot reads while the clock is high; `findlength` shifts a 32-bit value by 32, which is undefined but harmless in practice. Phase 1 removed an unused variable.
+7. **At offset 0 the rhythm starts on a rest.** The sketch plays the pattern from `euclid()`'s lowest bit, so three pulses over eight steps come out as `.x..x..x` instead of `x..x..x.`. It is still a Euclidean rhythm, rotated by one step, but most Euclidean sequencers put the first pulse on the downbeat. Found by the phase 4 tests.
 
 Good: `euclid()` returned the correct pulse count and length for every one of the 528 length/density pairs in a host sweep using AVR shift semantics. Keep it.
 
@@ -224,6 +225,8 @@ Each firmware on its own `fix/` branch, each fix preceded by a failing host test
 | PolyCrossClock | Due-time scheduling; wrap-safe comparisons; full randomness range; edge-triggered sync | 3 h |
 | Locking Sequencer | Pot dead band; start on step 1; initialise `currentoutput` | 1.5 h |
 
+The phase 4 tests work around two Euclidean bugs and should lose the workarounds with the fixes: they flip the toggle once before the first clock, and draw no zeros from `random()`.
+
 Gate: after the last fix, switch `platform.txt` from `-w` to `-Wall -Wextra` (ADR-5); every sketch must then compile with zero warnings.
 
 Hardware checklist: Euclidean length 5, density 2, run 64 clocks, confirm no restart at clock 32 and both outputs fire together. Turing scale and offset both full, confirm the CV pins at the top instead of dropping. PolyCrossClock free-running for 5 minutes with the toggle on quantized, confirm B stays on the beat.
@@ -280,3 +283,4 @@ Effort 2 to 3 days total. Risk medium, these change how the module feels; each n
 - Accept "set your sketchbook to `firmware/`" as the documented setup, or keep the copy-a-folder instructions and add a third one for the library.
 - Which full-scale output voltage the shipped units really have, measured on one unit. The Turing quantizer and any future V/oct work depend on it.
 - Whether to add a LICENSE file, which needs the two upstream licences checked first.
+- Whether the Euclidean should put the first pulse on the downbeat at offset 0, as most Euclidean sequencers do (Euclidean item 7).

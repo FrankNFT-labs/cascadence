@@ -105,6 +105,14 @@ std::vector<Pulse> pulses(int channel);
 // when the clocked sketches write their new step.
 std::vector<unsigned> values_written_while_clock_high(int channel);
 
+// One character per clock: 'x' where a pulse on the output starts during that
+// clock's period, '.' where none does. The clocks come every period_us from first_us.
+std::string steps_with_pulses(int channel, uint64_t first_us, uint64_t period_us, int clocks);
+
+// The lowest knob position that Arduino's map(knob, 0, 1023, out_min, out_max)
+// turns into `wanted`, which is how the sketches scale their knobs.
+int knob_for(long wanted, long out_min, long out_max);
+
 }  // namespace fake
 
 #endif

@@ -64,6 +64,22 @@ std::vector<unsigned> values_written_while_clock_high(int channel) {
   return values;
 }
 
+std::string steps_with_pulses(int channel, uint64_t first_us, uint64_t period_us, int clocks) {
+  std::string steps(clocks, '.');
+  for (const Pulse &pulse : pulses(channel)) {
+    if (pulse.start_us < first_us) continue;
+    uint64_t step = (pulse.start_us - first_us) / period_us;
+    if (step < steps.size()) steps[step] = 'x';
+  }
+  return steps;
+}
+
+int knob_for(long wanted, long out_min, long out_max) {
+  for (int knob = 0; knob <= 1023; ++knob)
+    if (::map(knob, 0, 1023, out_min, out_max) == wanted) return knob;
+  throw TestFailure{"no knob position maps to " + std::to_string(wanted)};
+}
+
 }  // namespace fake
 
 using fake::board;

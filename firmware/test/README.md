@@ -22,6 +22,19 @@ UndefinedBehaviorSanitizer is on by default. With GCC on Linux it names each pro
 - Each `test_<sketch>.cpp` declares the function prototypes that the Arduino builder would generate, then includes its sketch.
 - `test_runner.h` holds the `TEST` and `EXPECT` macros, and `test_runner.cpp` runs every test in its own process, so each test starts from a freshly booted sketch and a crash fails only that test. The runner's POSIX headers stay out of the files that include a sketch, because some sketch globals share their names: PolyCrossClock has a variable called `sync`.
 
+## What the tests cover
+
+| File | Sketch | Checks |
+|---|---|---|
+| `test_adsr.cpp` | ADSR | Envelope shape, knob edits per envelope, the pot scan, the dead band near zero, release, retrigger |
+| `test_euclidean.cpp` | Euclidean Sequencer | Three pulses spread evenly over eight steps and repeating, knob edits per output, full randomness inverting every step |
+| `test_locking.cpp` | Locking Sequencer | Four clocks play the four stored steps, and the toggle side decides which sequence the knobs edit |
+| `test_polycrossclock.cpp` | PolyCrossClock | 30 and 600 BPM, whole divisions, cross, and a reset from the clock input |
+| `test_template.cpp` | Template | Outputs at zero after boot, knob reads, the 40 ms `SendPulse()` |
+| `test_turing.cpp` | Turing Machine | Inverted and locked loops, the offset, the semitone quantizer |
+
+The tests describe what each sketch does right today; the known bugs get their failing tests in phase 2 of `UPGRADE-PLAN.md`. Until then the Euclidean tests work around two of them, and should drop the workarounds when the fixes land. Every test flips the toggle once before the first clock, because `setup()` leaves both outputs unset. The tests that expect an exact rhythm also draw no zeros from `random()`, because a draw of zero inverts a step even with the randomness knob fully counter-clockwise.
+
 ## Limits
 
 The host is not an ATtiny84:

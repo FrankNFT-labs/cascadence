@@ -8,6 +8,7 @@
 #include <set>
 #include <sstream>
 #include <string>
+#include <vector>
 
 #include "fake_board.h"
 
@@ -40,10 +41,15 @@ inline void expect_less(long actual, long bound, const char *expression, int lin
   throw TestFailure{message.str()};
 }
 
-inline std::string describe(const std::set<int> &values) {
+template <typename Container>
+std::string describe(const Container &values) {
   std::ostringstream text;
   text << "{";
-  for (int value : values) text << (value == *values.begin() ? "" : ", ") << value;
+  bool first = true;
+  for (const auto &value : values) {
+    text << (first ? "" : ", ") << value;
+    first = false;
+  }
   text << "}";
   return text.str();
 }
@@ -53,6 +59,19 @@ inline void expect_equal(const std::set<int> &actual, const std::set<int> &expec
   if (actual == expected) return;
   throw TestFailure{"line " + std::to_string(line) + ": " + expression + " is " + describe(actual) + ", expected " +
                     describe(expected)};
+}
+
+inline void expect_equal(const std::vector<unsigned> &actual, const std::vector<unsigned> &expected,
+                         const char *expression, int line) {
+  if (actual == expected) return;
+  throw TestFailure{"line " + std::to_string(line) + ": " + expression + " is " + describe(actual) + ", expected " +
+                    describe(expected)};
+}
+
+inline void expect_equal(const std::string &actual, const std::string &expected, const char *expression, int line) {
+  if (actual == expected) return;
+  throw TestFailure{"line " + std::to_string(line) + ": " + expression + " is \"" + actual + "\", expected \"" +
+                    expected + "\""};
 }
 
 }  // namespace fake
