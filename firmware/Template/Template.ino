@@ -52,8 +52,6 @@ void setup()
 
 void loop() {
 
-{
-  
   if(digitalRead(CLK_IN) == LOW)  //we've received a clock pulse!
     {
       //Insert your code here to handle a clock
@@ -63,14 +61,13 @@ void loop() {
       //setOutput(B, GAIN_2, NO_SHTDWN, 2000);
       //B or A to choose channels
       //GAIN_2 or GAIN_1 to choose 1x gain or 2x gain (I always use 2x)
-      //NO_SHTDWN or SHTDWN to disable the DAC_CS
+      //NO_SHTDWN keeps the DAC output on, SHTDWN switches it off
       //2000 - is the value out of 4096 to send out to the DAC
       
     }
     
 
     updatevalues();//subroutine to grab the 4 pot values
-}
 }
 
 

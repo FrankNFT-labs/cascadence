@@ -94,7 +94,7 @@ void loop() {
       didPulse = false;
     } else if ( !didPulse ){
       if ( now >= pulseOff ){
-       setOutput( 0, GAIN_2, NO_SHTDWN, 0 );
+       setOutput( A, GAIN_2, NO_SHTDWN, 0 );
        didPulse = true;
       }
     }
