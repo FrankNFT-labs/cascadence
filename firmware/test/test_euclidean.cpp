@@ -3,6 +3,7 @@
 // steps, one step per clock. The toggle chooses which output the knobs edit.
 
 #include <algorithm>
+#include <cstdlib>
 
 #include "test_runner.h"
 #include "fake_board.h"
@@ -11,7 +12,8 @@
 // The prototypes the Arduino builder generates for the sketch.
 uint64_t euclid(int n, int k);
 void updatevalues(boolean chan);
-void SendPulse(boolean chan);
+void StartPulse(boolean chan);
+void EndPulses();
 void setOutput(byte channel, byte gain, byte shutdown, unsigned int val);
 long int ConcatBin(uint64_t bina, uint64_t binb);
 int findlength(long int bnry);
@@ -29,7 +31,7 @@ const int OFFSET = POTS[2];
 const int RANDOMNESS = POTS[3];
 
 const uint64_t FIRST_CLOCK = 50 * fake::MS;
-const uint64_t CLOCK_PERIOD = 100 * fake::MS;  // room for two blocking 40 ms pulses, A then B
+const uint64_t CLOCK_PERIOD = 100 * fake::MS;  // longer than a 40 ms pulse
 const uint64_t CLOCK_WIDTH = 5 * fake::MS;
 
 // The sketch scales each knob with map(reading, 0, 1024, lowest, highest + 1),
@@ -213,6 +215,46 @@ TEST(a_knob_turned_just_past_the_dead_band_takes_effect) {
   fake::at(FIRST_CLOCK / 2, [] { board.pot[LENGTH] = 127 + 6; });  // 5 steps, 6 counts on: just past the 5-count dead band
   run_clocks(10);
   EXPECT_EQ(steps_with_pulses(A, 10), "x....x....");
+}
+
+TEST(both_outputs_fire_together_on_a_shared_step) {
+  set_rhythm(8, 8);
+  board.pot[RANDOMNESS] = 0;
+  fake::boot();
+  run_clocks(4);
+  std::vector<fake::Pulse> a = fake::pulses(A), b = fake::pulses(B);
+  EXPECT_EQ(a.size(), 4);
+  EXPECT_EQ(b.size(), 4);
+  for (size_t i = 0; i < a.size() && i < b.size(); ++i) {
+    EXPECT_LESS(std::labs(static_cast<long>(b[i].start_us) - static_cast<long>(a[i].start_us)), fake::MS);
+    EXPECT_AT_LEAST(b[i].end_us - b[i].start_us, 40 * fake::MS);
+    EXPECT_LESS(b[i].end_us - b[i].start_us, 41 * fake::MS);
+  }
+}
+
+TEST(a_clock_too_fast_for_two_pulses_back_to_back_still_plays_every_step) {
+  set_rhythm(8, 8);
+  board.pot[RANDOMNESS] = 0;
+  fake::boot();
+  const uint64_t period = 60 * fake::MS;  // one 40 ms pulse fits, two in a row do not
+  board.clock_input = fake::clock_pulses(period, CLOCK_WIDTH, FIRST_CLOCK);
+  fake::run_until(FIRST_CLOCK + 7 * period + period / 2);
+  EXPECT_EQ(fake::steps_with_pulses(A, FIRST_CLOCK, period, 8), "xxxxxxxx");
+  EXPECT_EQ(fake::steps_with_pulses(B, FIRST_CLOCK, period, 8), "xxxxxxxx");
+}
+
+TEST(a_pulse_lasts_40_ms_while_the_clock_stays_high_for_longer) {
+  set_rhythm(8, 8);
+  board.pot[RANDOMNESS] = 0;
+  fake::boot();
+  board.clock_input = fake::clock_pulses(CLOCK_PERIOD, CLOCK_PERIOD / 2, FIRST_CLOCK);  // high for 50 ms
+  fake::run_until(FIRST_CLOCK + 3 * CLOCK_PERIOD + CLOCK_PERIOD / 2);
+  std::vector<fake::Pulse> a = fake::pulses(A);
+  EXPECT_EQ(a.size(), 4);
+  for (const fake::Pulse &pulse : a) {
+    EXPECT_AT_LEAST(pulse.end_us - pulse.start_us, 40 * fake::MS);
+    EXPECT_LESS(pulse.end_us - pulse.start_us, 41 * fake::MS);
+  }
 }
 
 TEST(randomness_fully_counter_clockwise_inverts_no_step) {

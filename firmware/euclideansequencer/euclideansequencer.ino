@@ -32,6 +32,9 @@ unsigned char seq_length[2];
 unsigned char seq_offset[2];
 unsigned char seq_density[2];
 unsigned char seq_randomness[2];
+const unsigned long PULSE_LENGTH = 40000;  //trigger length in microseconds
+unsigned long pulsestart[2];  //when each output's pulse started, from micros()
+boolean pulsing[2];
 void setup()
 {
 
@@ -60,10 +63,11 @@ void setup()
 
 void loop() {
 int pulse = false;
+boolean clockwashigh = false;
 while(1)
 {
-  
-  if(digitalRead(CLK_IN) == LOW)  //we've received a clock pulse!
+  boolean clockhigh = digitalRead(CLK_IN) == LOW;  //the input transistor inverts the jack
+  if(clockhigh && !clockwashigh)  //we've received a clock pulse!
     {
       //calculate the actual step number for each sequencer
       offset_stepnumber[A]=stepnumber[A]+seq_offset[A];
@@ -81,7 +85,7 @@ while(1)
       if (random(MAXSTEPLENGTH) < seq_randomness[A] )  //or if there's a randomly generated pulse
         pulse = !pulse;
       if(pulse==1)  
-        SendPulse(A); //send one
+        StartPulse(A); //send one
 
       pulse=false;
       if(bitRead(euclids[B],seq_length[B]-1-offset_stepnumber[B]) == 1) //if there's a pulse
@@ -89,7 +93,7 @@ while(1)
       if (random(MAXSTEPLENGTH) < seq_randomness[B] )
         pulse = !pulse;
       if(pulse == 1)
-        SendPulse(B); //send one
+        StartPulse(B); //send one
       
       stepnumber[A]++;
       if(stepnumber[A]>=seq_length[A])
@@ -97,10 +101,10 @@ while(1)
       stepnumber[B]++;
       if(stepnumber[B]>=seq_length[B])
         stepnumber[B] = 0;
-      while(digitalRead(CLK_IN) == LOW);
       
     }
-    
+    clockwashigh = clockhigh;
+    EndPulses();
 
     updatevalues(!digitalRead(SW));
 }
@@ -242,11 +246,23 @@ void updatevalues(boolean chan)
   euclids[chan]=euclid(seq_length[chan],seq_density[chan]);
 }
 
-void SendPulse (boolean chan)
+void StartPulse (boolean chan)  //EndPulses() ends it, so both outputs fire together and no clock is missed
 {
   setOutput(chan, GAIN_2, NO_SHTDWN, 0xFFF);
-  delay(40);
-  setOutput(chan, GAIN_2, NO_SHTDWN, 0);
+  pulsestart[chan] = micros();
+  pulsing[chan] = true;
+}
+
+void EndPulses()
+{
+  for(byte chan=A; chan<=B; chan++)
+  {
+    if(pulsing[chan] && micros()-pulsestart[chan] >= PULSE_LENGTH)  //unsigned subtraction survives micros() wrapping around
+    {
+      setOutput(chan, GAIN_2, NO_SHTDWN, 0);
+      pulsing[chan] = false;
+    }
+  }
 }
 void setOutput(byte channel, byte gain, byte shutdown, unsigned int val)
 {
