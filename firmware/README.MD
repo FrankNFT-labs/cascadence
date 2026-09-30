@@ -1,6 +1,6 @@
 In this folder you will find the firmwares available for Cascadence. If you wish to submit your own firmware please get in touch with me (fil@cctv.fm).
 
-They are all written in Arduino, and rely on tinySPI (https://github.com/JChristensen/tinySPI)
+They are all written in Arduino and need no extra libraries: they drive the DAC by toggling its pins directly.
 
 ## Locking Sequencer - a dual 4 step sequencer
 

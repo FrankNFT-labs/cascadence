@@ -4,9 +4,6 @@
 
 //This file is to give you all the functions you need to start writing your own Cascadence firmware
 
-#include <tinySPI.h>
-//You will need to install the TinySPI library Using the 'Manage Libraries' panel
-    
 //DAC Definitions 
 const int GAIN_1 = 0x1;
 const int GAIN_2 = 0x0;

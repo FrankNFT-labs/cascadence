@@ -22,7 +22,7 @@ ARDUINO_DIRECTORIES_USER=/tmp/cascadence-sketchbook arduino-cli compile --fqbn C
 - The package borrows the `arduino:avr` core (`build.core=arduino:arduino`), so that core must be installed.
 - A sketch must stay at or under 6012 bytes of flash: 8 KB minus the bootloader. RAM is 512 bytes.
 - The package compiles with `-w`, so this build never shows warnings.
-- Every sketch except ADSR has `#include <tinySPI.h>`, which it never uses. Install the library into the same sketchbook (`ARDUINO_DIRECTORIES_USER=... arduino-cli lib install tinySPI`) or build a copy without that line.
+- The sketches need no libraries. They used to include `tinySPI.h` without calling it; phase 1 removed that include.
 
 For warnings, build with ATTinyCore as a stand-in. The sketches declare `const int MOSI` and `const int SCK`, which ATTinyCore defines as macros, so rename them in a copy first:
 

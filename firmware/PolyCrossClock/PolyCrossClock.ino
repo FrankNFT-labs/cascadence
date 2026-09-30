@@ -14,9 +14,6 @@
  * KNOB 4 - Randomness per division step
  */
 
-
-#include <tinySPI.h>
-
 /// TEMPLATE
 //DAC Definitions 
 const int GAIN_1 = 0x1;

@@ -1,5 +1,3 @@
-#include <tinySPI.h>
-
 //TuringMachine
 //For Cascadence
 //Developed with Modular Seattle for Velocity 2019

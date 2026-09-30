@@ -1,5 +1,3 @@
-#include <tinySPI.h>
-
 //Euclidean Sequencer
 //For Cascadence
 //Developed with Modular Seattle for Velocity 2019
