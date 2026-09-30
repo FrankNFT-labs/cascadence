@@ -2,6 +2,8 @@
 //For Cascadence
 //Developed with Modular Seattle for Velocity 2019
     
+#include <avr/eeprom.h>
+
 #define MAXSEQLENGTH 16  
 const int GAIN_1 = 0x1;
 const int GAIN_2 = 0x0;
@@ -59,6 +61,10 @@ void setup()
   digitalWrite(PIN_CS,HIGH);
   pinMode(PIN_CS, OUTPUT);
 
+
+  uint8_t powerups = eeprom_read_byte((const uint8_t *)0);  //counts power-ups, so each one seeds random() differently and plays a new sequence
+  eeprom_update_byte((uint8_t *)0, powerups + 1);  //one byte: the EEPROM writes it in the background, so setup() does not wait
+  randomSeed(powerups + 1);  //1 to 256, because randomSeed(0) changes nothing
 
   updatevalues();
   

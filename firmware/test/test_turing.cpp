@@ -33,6 +33,7 @@ const int OFFSET = POTS[3];
 // clockwise never flips it, which locks the loop.
 const int ALWAYS_FLIP = 0;
 const int NEVER_FLIP = 1023;
+const int HALF_FLIP = 512;  // random() decides, about half the time
 
 const uint64_t FIRST_CLOCK = 50 * fake::MS;
 const uint64_t CLOCK_PERIOD = 100 * fake::MS;  // longer than the 40 ms pulse on B
@@ -136,6 +137,26 @@ TEST(a_pulse_lasts_40_ms_while_the_clock_stays_high_for_longer) {
     EXPECT_AT_LEAST(pulse.end_us - pulse.start_us, 40 * fake::MS);
     EXPECT_LESS(pulse.end_us - pulse.start_us, 41 * fake::MS);
   }
+}
+
+// One power-up and 16 clocks. Returns the CV it played, a newline, and the
+// EEPROM it left behind.
+std::string power_up_and_play() {
+  fake::boot();
+  run_clocks(16);
+  return fake::describe(fake::values_written_while_clock_high(A)) + "\n" +
+         std::string(board.eeprom.begin(), board.eeprom.end());
+}
+
+TEST(each_power_up_plays_a_new_sequence) {
+  set_up(HALF_FLIP, 8, 1023, 0, false);
+  std::string first = fake::in_child_process(power_up_and_play);
+  std::string first_cv = first.substr(0, first.find('\n'));
+  std::string eeprom = first.substr(first.find('\n') + 1);
+  board.eeprom.assign(eeprom.begin(), eeprom.end());  // the second power-up finds what the first left
+  std::string second = fake::in_child_process(power_up_and_play);
+  std::string second_cv = second.substr(0, second.find('\n'));
+  if (first_cv == second_cv) throw fake::TestFailure{"both power-ups played " + first_cv};
 }
 
 TEST(a_clock_already_high_at_power_up_plays_its_step_with_the_knob_settings) {
