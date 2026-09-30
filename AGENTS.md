@@ -77,7 +77,7 @@ Timing differs per sketch, and is mostly blocking:
 
 - Euclidean: busy-waits on the clock input and sends each pulse with a blocking `delay(40)`, as the Template's `SendPulse` teaches.
 - Locking Sequencer: busy-waits on the clock input.
-- Turing Machine: busy-waits on the clock input and sends its pulse with a blocking `delay(40)`.
+- Turing Machine: detects the clock's rising edge without waiting for it, writes the CV first, and ends its 40 ms pulse on B from `micros()`, so the loop never stops.
 - PolyCrossClock: schedules its clocks from `micros()`.
 - ADSR: advances its envelopes one step per pass of `loop()`, so envelope times depend on how long a pass takes, which is dominated by the two bit-banged DAC writes. Adding work to the loop retunes every envelope.
 
