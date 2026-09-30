@@ -131,4 +131,4 @@ The step rate is how fast the firmware loops, so the times above are approximate
 
 Based on [ADSRduino](https://github.com/m0xpd/ADSRduino) by m0xpd ([write-up](http://m0xpd.blogspot.co.uk/2017/02/signal-processing-on-arduino.html)). Cascadence was designed by [cctv.fm](https://www.cctv.fm/product-page/cascadence) with Modular Seattle for Velocity 2019.
 
-For developers: the host-side tests for this firmware are in [test/](test/README.md), and planned changes are in [UPGRADE-PLAN.md](../../UPGRADE-PLAN.md).
+For developers: the host-side tests for this firmware are in [firmware/test](../test/README.md), and planned changes are in [UPGRADE-PLAN.md](../../UPGRADE-PLAN.md).

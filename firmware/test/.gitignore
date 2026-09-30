@@ -1,0 +1,7 @@
+test_adsr
+test_euclidean
+test_locking
+test_polycrossclock
+test_template
+test_turing
+*.dSYM/

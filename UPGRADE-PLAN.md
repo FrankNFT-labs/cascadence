@@ -132,7 +132,7 @@ Compiles clean. Problems are in what it teaches: the `tinySPI` include that cann
 - **`MOSI` and `SCK` as constant names** break the build on ATTinyCore, which defines them as macros. Only the repo's own package accepted the sketches as written, until phase 1 renamed the constants to `DAC_MOSI` and `DAC_SCK`.
 - **`setOutput` never clamps or masks.** Any value of 4096 or more corrupts the DAC control bits. Only the Turing Machine reaches that today, but a shared write should refuse it.
 - **Blocking timing everywhere.** `delay(40)` pulses and `while (clock low)` loops in four sketches. Every timing complaint above traces back to this.
-- **No tests, no CI.** The ADSR harness in `firmware/ADSR/test/` is the first executable check in the repo.
+- **No tests, no CI.** The ADSR harness, now the shared `firmware/test/`, is the first executable check in the repo.
 - **Licensing is unverified.** The ADSR is based on m0xpd's ADSRduino and the Euclidean generator on Tom Whitwell's code. The repository has no LICENSE file. Check both upstream licences before publishing derived work.
 
 ## Architecture decisions
@@ -265,7 +265,7 @@ Effort 2 to 3 days total. Risk medium, these change how the module feels; each n
    ```
 3. Host tests:
    ```bash
-   make -C firmware/ADSR/test
+   make -C firmware/test
    ```
 4. The hardware checklist of the phase.
 
