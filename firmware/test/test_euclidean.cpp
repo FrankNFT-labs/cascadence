@@ -38,21 +38,6 @@ void set_rhythm(int pulses, int steps) {
   board.pot[OFFSET] = 0;
 }
 
-// A channel copies the knobs only while the toggle selects it, and setup()
-// sets up neither channel (a phase 2 bug), so every test boots with the toggle
-// right, which sets up B, and flips it left, which sets up A, before the first
-// clock.
-void boot_and_set_up_both_channels() {
-  board.toggle_left = false;
-  fake::boot();
-  fake::at(FIRST_CLOCK / 2, [] { board.toggle_left = true; });
-}
-
-// With the randomness knob fully counter-clockwise, a draw of 0 from
-// random(31) still inverts a step (a phase 2 bug). Drawing the highest value
-// every time keeps the rhythm exact.
-long highest_draw(long howbig) { return howbig - 1; }
-
 // Clocks the sketch `clocks` times. loop() never returns, so this is the
 // test's only run: schedule knob and toggle changes before calling it.
 void run_clocks(int clocks) {
@@ -97,10 +82,9 @@ void expect_euclidean(const std::string &steps, int pulses, int line) {
 #define EXPECT_EUCLIDEAN(steps, pulses) expect_euclidean((steps), (pulses), __LINE__)
 
 TEST(three_pulses_spread_evenly_over_eight_steps_repeat_every_eight_clocks) {
-  board.random_below = highest_draw;
   set_rhythm(3, 8);
   board.pot[RANDOMNESS] = 0;
-  boot_and_set_up_both_channels();
+  fake::boot();
   run_clocks(16);
   std::string a = steps_with_pulses(A, 16);
   EXPECT_EUCLIDEAN(a.substr(0, 8), 3);
@@ -109,18 +93,20 @@ TEST(three_pulses_spread_evenly_over_eight_steps_repeat_every_eight_clocks) {
 }
 
 TEST(knobs_edit_only_the_output_the_toggle_selects) {
-  board.random_below = highest_draw;
-  set_rhythm(8, 8);  // B, set up first, pulses on every step
+  set_rhythm(8, 8);  // both outputs at power-up: a pulse on every step
   board.pot[RANDOMNESS] = 0;
-  boot_and_set_up_both_channels();
-  fake::at(FIRST_CLOCK / 2, [] { set_rhythm(3, 8); });  // A, selected from here on
+  board.toggle_left = false;
+  fake::boot();
+  fake::at(FIRST_CLOCK / 2, [] {  // flip the toggle left, to A, and turn the knobs
+    board.toggle_left = true;
+    set_rhythm(3, 8);
+  });
   run_clocks(8);
   EXPECT_EUCLIDEAN(steps_with_pulses(A, 8), 3);
   EXPECT_EQ(steps_with_pulses(B, 8), "xxxxxxxx");
 }
 
 TEST(both_outputs_play_their_rhythm_from_the_first_clock_without_a_toggle_flip) {
-  board.random_below = highest_draw;
   set_rhythm(3, 8);
   board.pot[RANDOMNESS] = 0;
   fake::boot();  // toggle left, so loop() sets up only A: B depends on setup()
@@ -142,7 +128,7 @@ TEST(randomness_fully_counter_clockwise_inverts_no_step) {
 TEST(randomness_fully_clockwise_inverts_every_step) {
   set_rhythm(3, 8);
   board.pot[RANDOMNESS] = 1023;  // every draw from random(31) is below the setting
-  boot_and_set_up_both_channels();
+  fake::boot();
   run_clocks(8);
   std::string a = steps_with_pulses(A, 8);
   EXPECT_EUCLIDEAN(inverted(a), 3);  // the three-over-eight rhythm with every step inverted

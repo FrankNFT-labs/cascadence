@@ -33,7 +33,7 @@ UndefinedBehaviorSanitizer is on by default. With GCC on Linux it names each pro
 | `test_template.cpp` | Template | Outputs at zero after boot, knob reads, the 40 ms `SendPulse()` |
 | `test_turing.cpp` | Turing Machine | Inverted and locked loops, the offset, the semitone quantizer |
 
-The tests describe what each sketch does right today; the known bugs get their failing tests in phase 2 of `UPGRADE-PLAN.md`. Until then the Euclidean tests work around two of them, and should drop the workarounds when the fixes land. Every test flips the toggle once before the first clock, because `setup()` leaves both outputs unset. The tests that expect an exact rhythm also draw no zeros from `random()`, because a draw of zero inverts a step even with the randomness knob fully counter-clockwise.
+The tests describe what each sketch does right today; the known bugs get their failing tests in phase 2 of `UPGRADE-PLAN.md`.
 
 ## Limits
 
