@@ -21,7 +21,8 @@ const int DAC_MOSI = 6;
 const int DAC_SCK = 4;
 const int PIN_CS = 5;
 
-unsigned int values[2][4];
+const int THRESHOLD = 5;  //dead band for the knobs in ADC counts, as in the ADSR
+int values[2][4] = {{-100,-100,-100,-100},{-100,-100,-100,-100}};  //the readings each output took last; far from any reading at first, so setup() takes them all
 const int A = 0;
 const int B = 1;
 long int euclids[2];
@@ -216,10 +217,19 @@ uint64_t euclid(int n, int k){ // inputs: n=total, k=beats, o = offset
 void updatevalues(boolean chan)
 {
   unsigned char x;
+  int reading;
+  boolean moved=false;
    for(x=0;x<4;x++)
   {
-    values[chan][x]=analogRead(POTS[x]);  //read the 4 pots so we don't have junk for the first sequence
+    reading=analogRead(POTS[x]);
+    if(reading<values[chan][x]-THRESHOLD || reading>values[chan][x]+THRESHOLD)  //ignore smaller changes, so a knob at the edge of a step cannot flicker
+    {
+      values[chan][x]=reading;
+      moved=true;
+    }
   }
+  if(!moved)
+    return;  //nothing to recompute
 
   //map(reading,0,1024,lowest,highest+1) gives each value from lowest to highest an equal share of the knob's travel
   seq_length[chan]=map(values[chan][0],0,1024,1,MAXSTEPLENGTH+2);

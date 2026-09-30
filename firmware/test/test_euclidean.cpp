@@ -182,6 +182,39 @@ TEST(the_randomness_knob_reaches_every_step_inverted_before_the_end_of_its_trave
   EXPECT_EQ(steps_with_pulses(A, 8), inverted("x..x..x."));
 }
 
+TEST(a_knob_jittering_by_one_count_across_a_step_boundary_keeps_its_value) {
+  board.pot[LENGTH] = 127;  // the highest reading for 4 steps; 128 gives 5
+  board.pot[DENSITY] = 0;   // one pulse
+  board.pot[OFFSET] = 0;
+  board.pot[RANDOMNESS] = 0;
+  fake::boot();
+  for (int clock = 0; clock < 16; clock += 2) {  // one count up after every other clock, back down after the next
+    fake::at(FIRST_CLOCK + clock * CLOCK_PERIOD + CLOCK_PERIOD / 2, [] { board.pot[LENGTH] = 128; });
+    fake::at(FIRST_CLOCK + (clock + 1) * CLOCK_PERIOD + CLOCK_PERIOD / 2, [] { board.pot[LENGTH] = 127; });
+  }
+  run_clocks(16);
+  EXPECT_EQ(steps_with_pulses(A, 16), "x...x...x...x...");
+}
+
+TEST(with_every_knob_fully_counter_clockwise_at_power_up_every_step_pulses) {
+  for (int &knob : board.pot) knob = 0;  // one step with one pulse, well inside the dead band of a reading of 0
+  fake::boot();
+  run_clocks(8);
+  EXPECT_EQ(steps_with_pulses(A, 8), "xxxxxxxx");
+  EXPECT_EQ(steps_with_pulses(B, 8), "xxxxxxxx");
+}
+
+TEST(a_knob_turned_just_past_the_dead_band_takes_effect) {
+  board.pot[LENGTH] = 127;  // 4 steps
+  board.pot[DENSITY] = 0;
+  board.pot[OFFSET] = 0;
+  board.pot[RANDOMNESS] = 0;
+  fake::boot();
+  fake::at(FIRST_CLOCK / 2, [] { board.pot[LENGTH] = 127 + 6; });  // 5 steps, 6 counts on: just past the 5-count dead band
+  run_clocks(10);
+  EXPECT_EQ(steps_with_pulses(A, 10), "x....x....");
+}
+
 TEST(randomness_fully_counter_clockwise_inverts_no_step) {
   board.random_below = [](long) { return 0L; };  // the draw most likely to invert a step
   set_rhythm(3, 8);
