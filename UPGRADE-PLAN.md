@@ -221,7 +221,7 @@ Each firmware on its own `fix/` branch, each fix preceded by a failing host test
 
 | Firmware | Fixes | Effort |
 |---|---|---|
-| Euclidean | Per-channel step counters; randomness 0 means none; init both channels; simultaneous non-blocking A and B pulses; pot dead band, with equal knob steps so the dead band cannot hide the top value; first pulse on the downbeat | 4 h |
+| Euclidean | Per-channel step counters; randomness 0 means none; init both channels; simultaneous non-blocking A and B pulses; pot dead band, with equal knob steps so the dead band cannot hide the top value; first pulse on the downbeat; toggle as on the ADSR | 4 h |
 | Turing Machine | Clamp output; init both channels; CV before pulse, non-blocking pulse; seed `random()`; semitone constant from a measured full scale | 3 h plus one hardware measurement |
 | PolyCrossClock | Due-time scheduling; wrap-safe comparisons; full randomness range; edge-triggered sync | 3 h |
 | Locking Sequencer | Pot dead band; start on step 1; initialise `currentoutput` | 1.5 h |
@@ -284,6 +284,7 @@ Effort 2 to 3 days total. Risk medium, these change how the module feels; each n
 - 30-09-2026: phase 1 stays behaviour-neutral. The no-op init fix and the `setOutput` clamp move to phase 2, `-Wall -Wextra` to the end of phase 2, and `-flto` to after phase 5's fixed tick (ADR-5). Phase 4 runs before phase 2.
 - 30-09-2026: the Euclidean puts its first pulse on the downbeat at offset 0 (Euclidean item 7).
 - 30-09-2026: phase 2 runs one branch per firmware, the Euclidean and the Turing Machine first; branches wait for their hardware checks while the module runs the ADSR.
+- 30-09-2026: the Euclidean toggle works as on the ADSR. Flipping it changes neither output; a knob turned afterwards edits only its own setting of the selected output. Until now a flip copied all four knob positions into the selected output, so flipping back to A overwrote A with B's settings.
 
 ## Decisions needed
 
