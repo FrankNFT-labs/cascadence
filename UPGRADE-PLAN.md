@@ -251,9 +251,9 @@ Effort 2 to 3 days total. Risk medium, these change how the module feels; each n
    ```bash
    mkdir -p /tmp/cascadence-sketchbook/hardware && cp -R software/CCTV /tmp/cascadence-sketchbook/hardware/ && ARDUINO_DIRECTORIES_USER=/tmp/cascadence-sketchbook arduino-cli compile --fqbn CCTV:avr:CCTV firmware/ADSR
    ```
-2. Compile with warnings (until ADR-5 lands in the package). ATTinyCore defines `MOSI` and `SCK` as macros, so until phase 1 renames those constants, run this on a scratch copy with them renamed:
+2. Compile with warnings (until ADR-5 lands in the package):
    ```bash
-   arduino-cli compile --fqbn "ATTinyCore:avr:attinyx4:chip=84,clock=8internal,pinmapping=old" --warnings all firmware/ADSR
+   arduino-cli compile --fqbn "ATTinyCore:avr:attinyx4:chip=84,clock=8internal,pinmapping=old" --warnings all --clean firmware/ADSR
    ```
 3. Host tests:
    ```bash

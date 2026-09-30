@@ -24,14 +24,13 @@ ARDUINO_DIRECTORIES_USER=/tmp/cascadence-sketchbook arduino-cli compile --fqbn C
 - The package compiles with `-w`, so this build never shows warnings.
 - The sketches need no libraries. They used to include `tinySPI.h` without calling it; phase 1 removed that include.
 
-For warnings, build with ATTinyCore as a stand-in. The sketches declare `const int MOSI` and `const int SCK`, which ATTinyCore defines as macros, so rename them in a copy first:
+For warnings, build with ATTinyCore as a stand-in:
 
 ```bash
-mkdir -p /tmp/lint/ADSR && perl -pe 's/\bMOSI\b/DAC_MOSI/g; s/\bSCK\b/DAC_SCK/g' firmware/ADSR/ADSR.ino > /tmp/lint/ADSR/ADSR.ino
-arduino-cli compile --fqbn "ATTinyCore:avr:attinyx4:chip=84,clock=8internal,pinmapping=old" --warnings all /tmp/lint/ADSR
+arduino-cli compile --fqbn "ATTinyCore:avr:attinyx4:chip=84,clock=8internal,pinmapping=old" --warnings all --clean firmware/ADSR
 ```
 
-`pinmapping=old` matches the pin numbering of the repo's `tiny14` variant. The ADSR is warning-free under `-Wall -Wextra`.
+`pinmapping=old` matches the pin numbering of the repo's `tiny14` variant. `--clean` forces a full rebuild, because arduino-cli prints no warnings for files it takes from its cache. ATTinyCore's own core adds one `#warning` about that pin mapping; ignore it. The ADSR is warning-free under `-Wall -Wextra`.
 
 Host tests exist for the ADSR only:
 
