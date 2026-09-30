@@ -5,6 +5,7 @@
 #ifndef TEST_RUNNER_H
 #define TEST_RUNNER_H
 
+#include <functional>
 #include <set>
 #include <sstream>
 #include <string>
@@ -19,6 +20,12 @@ void register_test(const char *name, void (*body)());
 struct RegisterTest {
   RegisterTest(const char *name, void (*body)()) { register_test(name, body); }
 };
+
+// Runs `scenario` in a child process: one more power-up of the sketch, from the
+// board as it is in this process. The fork is the reset, so a test that needs
+// several power-ups runs each one this way. Returns what the scenario returns;
+// a failure inside it fails the test.
+std::string in_child_process(const std::function<std::string()> &scenario);
 
 inline void expect_equal(long actual, long expected, const char *expression, int line) {
   if (actual == expected) return;

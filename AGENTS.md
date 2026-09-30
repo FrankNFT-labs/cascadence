@@ -95,7 +95,8 @@ Timing differs per sketch, and is mostly blocking:
 - Time is virtual: each Arduino call advances it by an estimate of its ATtiny84 cost, and `delay()` by the delay. `fake::at()` schedules knob and toggle changes, `fake::clock_pulses()` drives the input, and `fake::run_until()` ends a `loop()` that never returns by throwing `fake::ScenarioEnd` from the next Arduino call. Give such a sketch one `run_until()` per test: a second call restarts `loop()` from the top, with fresh locals.
 - Each `test_<sketch>.cpp` declares the prototypes the Arduino builder would generate, then includes the sketch. `test_runner.h` stays free of POSIX headers, because sketch globals collide with them (PolyCrossClock's `sync`); the forking `main()` lives in `test_runner.cpp`.
 - The ADSR tests drive the gate as a countdown of high reads, so each read is one envelope step, and fail a pass that reads the gate low more than twice as "running without a gate".
-- Every test runs in a forked child, and the fork is the reset: `setup()` does not reinitialise the sketch's globals, so `fake::boot()` throws if a test calls it twice.
+- Every test runs in a forked child, and the fork is the reset: `setup()` does not reinitialise the sketch's globals, so `fake::boot()` throws if a test calls it twice. A test that needs several power-ups runs each one in `fake::in_child_process()` and carries state between them, such as the EEPROM, itself.
+- `random()` is avr-libc's Park-Miller generator, so a seed draws what the module draws; `firmware/test/avr/eeprom.h` stands in for avr-libc's EEPROM calls, on the Makefile's `-I.`.
 - The host has a 32-bit `int` and a 64-bit `long` and `double`, so overflow, wrap-around and float rounding differ from the ATtiny84.
 
 ## Verification before calling a firmware change done

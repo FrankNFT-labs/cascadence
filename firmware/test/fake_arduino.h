@@ -31,6 +31,7 @@ unsigned long micros();
 unsigned long millis();
 long random(long howbig);
 long random(long howsmall, long howbig);
+void randomSeed(unsigned long seed);
 long map(long x, long in_min, long in_max, long out_min, long out_max);
 
 #endif

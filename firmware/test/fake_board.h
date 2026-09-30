@@ -1,7 +1,8 @@
 // A fake Cascadence board for host-side tests: the four pots, the A/B toggle,
-// the clock or gate input behind its inverting transistor, and the MCP48x2 DAC
-// on outputs A and B. fake_board.cpp implements the Arduino API from
-// fake_arduino.h against it.
+// the clock or gate input behind its inverting transistor, the MCP48x2 DAC on
+// outputs A and B, and the ATtiny84's EEPROM. fake_board.cpp implements the
+// Arduino API from fake_arduino.h, and the EEPROM calls from avr/eeprom.h,
+// against it.
 //
 // Time is virtual. Every Arduino call advances it by a rough estimate of what
 // the call takes on the ATtiny84 at 8 MHz, delay() advances it by the delay, and
@@ -53,14 +54,19 @@ struct Board {
   bool toggle_left = true;
   // Whether the jack on the clock input is high, asked on every read of it.
   std::function<bool(uint64_t now_us)> clock_input = [](uint64_t) { return false; };
-  // What random(howbig) returns for howbig > 0. Unset, it draws from a fixed
-  // pseudo-random sequence, the same in every run.
+  // What random(howbig) returns for howbig > 0. Unset, random() is avr-libc's
+  // generator, which draws what the module draws: the same sequence in every
+  // run, unless the sketch seeds it with randomSeed().
   std::function<long(long howbig)> random_below;
+  // The ATtiny84's 512 bytes of EEPROM, erased. A test that powers the sketch up
+  // more than once hands the EEPROM from one power-up to the next.
+  std::vector<uint8_t> eeprom = std::vector<uint8_t>(512, 0xFF);
   // Estimated cost of each call on the ATtiny84 at 8 MHz, in microseconds.
   uint64_t analog_read_us = 112;
   uint64_t digital_read_us = 4;
   uint64_t digital_write_us = 4;
   uint64_t shift_out_us = 50;
+  uint64_t eeprom_write_us = 3400;  // per byte, from the datasheet; the program runs on meanwhile
 
   uint64_t now_us = 0;
   uint64_t end_us = UINT64_MAX;
@@ -68,6 +74,7 @@ struct Board {
   std::set<int> sampled_adc_channels;
   std::vector<DacWrite> dac[2];
   bool input_high = false;  // what the latest read of the clock input saw
+  uint64_t eeprom_busy_until_us = 0;  // when the EEPROM write in progress finishes
   bool dac_selected = false;
   std::vector<uint8_t> frame;
 };
