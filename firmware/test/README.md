@@ -27,7 +27,7 @@ UndefinedBehaviorSanitizer is on by default. With GCC on Linux it names each pro
 | File | Sketch | Checks |
 |---|---|---|
 | `test_adsr.cpp` | ADSR | Envelope shape, knob edits per envelope, the pot scan, the dead band near zero, release, retrigger |
-| `test_euclidean.cpp` | Euclidean Sequencer | Even rhythms that start on a pulse and keep their cycle past 32 clocks, both outputs set up at power-up, knob edits per output, knob scaling and dead band, randomness at both ends, A and B firing together without blocking the clock |
+| `test_euclidean.cpp` | Euclidean Sequencer | Even rhythms that start on a pulse and keep their cycle past 32 clocks, both outputs set up at power-up, knob edits per output and toggle flips that change nothing, knob scaling and dead band, randomness at both ends, A and B firing together without blocking the clock |
 | `test_locking.cpp` | Locking Sequencer | Four clocks play the four stored steps, and the toggle side decides which sequence the knobs edit |
 | `test_polycrossclock.cpp` | PolyCrossClock | 30 and 600 BPM, whole divisions, cross, and a reset from the clock input |
 | `test_template.cpp` | Template | Outputs at zero after boot, knob reads, the 40 ms `SendPulse()` |

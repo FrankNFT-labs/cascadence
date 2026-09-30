@@ -32,7 +32,7 @@ Potentiometers from top to bottom:
 3. Offset - rotates the sequence by 0 to Length - 1 steps; each step of offset makes every pulse come one step earlier. At 0, each cycle starts on a pulse.
 4. Randomness - The likelihood of a step being inverted (no pulse becomes pulse, pulse becomes no pulse). At full counter-clockwise, 0 randomness is added. At full clockwise every step will be inverted. In between min and max, the sequence will change at every iteration. The 'coin' is flipped on every step.
 
-Toggle Switch - Left edits sequence A, right edits sequence B, and the other keeps its settings. The selected sequence follows the knobs, so flipping the toggle hands it the knobs' current positions.
+Toggle Switch - Left edits sequence A, right edits sequence B, and the other keeps its settings. Flipping it changes nothing by itself: a knob you turn afterwards changes only its own setting of the selected sequence, as on the ADSR.
 
 A Output - 40 ms pulses of sequence A
 
