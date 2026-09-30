@@ -22,7 +22,7 @@ ARDUINO_DIRECTORIES_USER=/tmp/cascadence-sketchbook arduino-cli compile --fqbn C
 - The package borrows the `arduino:avr` core (`build.core=arduino:arduino`), so that core must be installed.
 - A sketch must stay at or under 6012 bytes of flash: 8 KB minus the bootloader. RAM is 512 bytes.
 - The package compiles with `-w`, so this build never shows warnings.
-- The sketches need no libraries. They used to include `tinySPI.h` without calling it; phase 1 removed that include.
+- The sketches need no libraries.
 
 For warnings, build with ATTinyCore as a stand-in:
 
