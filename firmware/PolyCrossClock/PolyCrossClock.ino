@@ -1,21 +1,19 @@
 /*
  * PolyCrossClock
- * A polyrythm cros-rhythm generating clock with drifting or strict divisions
+ * A polyrhythm cross-rhythm generating clock with drifting or strict divisions
  * Adam Tindale
  * 2020
  * For Cascadence
  * 
- * INPUT 1 - NOT IMPLEMENTED. Sync Planned.
+ * INPUT 1 - Reset: while it is high, both outputs restart
  * OUTPUT 1 - Clock
  * OUTPUT 2 - Clock Division
- * KNOB 1 - Tempo 30 - 120
- * KNOB 2 - Length of Divisions 1-16 per beat
- * KNOB 3 - Cross 
- * KNOB 4 - Randomness per division step
+ * KNOB 1 - Tempo 30 - 600 BPM
+ * KNOB 2 - Divisions per beat 1-16
+ * KNOB 3 - Cross 1-8: B plays every Cross-th division
+ * KNOB 4 - Randomness: chance that a division pulse is skipped
+ * SWITCH - Left: whole divisions per beat. Right: fractional divisions, which drift
  */
-
-
-#include <tinySPI.h>
 
 /// TEMPLATE
 //DAC Definitions 
@@ -32,15 +30,14 @@ const int POTS[4]={0,1,2,3};  //the 4 pots from top to bottom
 const int CLK_IN = 8;
 const int SW = 7;
 //DAC pins
-const int MOSI = 6;
-const int SCK = 4;
+const int DAC_MOSI = 6;
+const int DAC_SCK = 4;
 const int PIN_CS = 5;
 
 unsigned int values[4]; //Global array to store potentiometer values
 
 /// Clock Sketch Specific
 byte switchValue = 0;
-unsigned int previousValues[4];
 
 // 1000 micro seconds in a millisecond => 1 000 000 micros in a second
 unsigned long now;
@@ -50,7 +47,6 @@ unsigned long pulseOff;
 unsigned long pulseDur = 40000;
 boolean didPulse = true;
 
-unsigned long divisionTick;
 unsigned long nextDivisionTick;
 unsigned long divisionDur;
 unsigned long divisionPulseOff;   
@@ -60,7 +56,6 @@ boolean divisionPulse = true;
 unsigned char cross = 1;
 float divisions = 1.0;
 unsigned char randomness = 0;
-unsigned char stepnumber = 0;
 
 boolean sync; 
 
@@ -74,8 +69,8 @@ void setup(){
   pinMode(CLK_IN,INPUT_PULLUP); //Pullup might not be necessary
 
   //mosi, sck, and pin_cs used for spi dac (mcp4822)
-  pinMode(MOSI,OUTPUT);
-  pinMode(SCK,OUTPUT);
+  pinMode(DAC_MOSI,OUTPUT);
+  pinMode(DAC_SCK,OUTPUT);
  
   digitalWrite(PIN_CS,HIGH);  //prepare the dac CS line (active low)
   pinMode(PIN_CS, OUTPUT);  
@@ -100,7 +95,7 @@ void loop() {
       didPulse = false;
     } else if ( !didPulse ){
       if ( now >= pulseOff ){
-       setOutput( 0, GAIN_2, NO_SHTDWN, 0 );
+       setOutput( A, GAIN_2, NO_SHTDWN, 0 );
        didPulse = true;
       }
     }
@@ -146,9 +141,6 @@ void updatevalues(void){
   }
 
   switchValue = sync;
-  for (x = 0; x < 4; x++){
-    previousValues[x] = values[x];
-  }
 }
 
 void setOutput(byte channel, byte gain, byte shutdown, unsigned int val){
@@ -161,7 +153,7 @@ void setOutput(byte channel, byte gain, byte shutdown, unsigned int val){
   //shutdown is to disable the DAC output, 0 for shutdown, 1 for no shutdown
    
   digitalWrite(PIN_CS, LOW);
-  shiftOut(MOSI,SCK,MSBFIRST,highByte);
-  shiftOut(MOSI,SCK,MSBFIRST,lowByte);
+  shiftOut(DAC_MOSI,DAC_SCK,MSBFIRST,highByte);
+  shiftOut(DAC_MOSI,DAC_SCK,MSBFIRST,lowByte);
   digitalWrite(PIN_CS, HIGH);
 }

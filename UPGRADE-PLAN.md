@@ -18,9 +18,9 @@ How the findings were obtained: a line-by-line review of every sketch, compiles 
 | ADSR | Promising but flawed | Sound envelope core; port bugs fixed in PR #2; timing is tied to loop speed and the knob taper crowds the useful range into the top of the travel |
 | Euclidean Sequencer | Promising but flawed | Pattern generator is correct for all 528 length/density pairs; the sequencing around it glitches every 32 clocks, never initialises the second channel, and fires B 40 ms after A |
 | Turing Machine | Promising but flawed | Register logic matches the original; output wraps instead of clipping, and the quantizer constant is for a prototype with a different output range |
-| PolyCrossClock | Promising but flawed | Good concept for the module; free-running divisions drift off the beat, the randomness knob wraps, and the docs describe another sketch |
+| PolyCrossClock | Promising but flawed | Good concept for the module; free-running divisions drift off the beat and the randomness knob wraps; phase 1 corrected its docs |
 | Locking Sequencer | Strong, with rough edges | Simple and correct; pitch jitters from raw ADC reads, and the first clock plays step 2 |
-| Template | Weak as a template | Compiles clean, but teaches the blocking pulse, the unusable `tinySPI` include, and copy-paste boilerplate |
+| Template | Weak as a template | Compiles clean, but teaches the blocking pulse and copy-paste boilerplate; phase 1 removed its unusable `tinySPI` include |
 
 ## Inventory
 
@@ -28,12 +28,12 @@ Flash limit is 6012 bytes (8 KB minus the micronucleus bootloader), RAM is 512 b
 
 | Sketch | Last change | Lines | Flash | RAM | Warnings |
 |---|---|---|---|---|---|
-| ADSR | 27-09-2026 | 206 | 4114 (4366 before PR #2) | 72 (103) | 0 (before PR #2: 1, plus 2 that only clang reported) |
-| Template | 30-09-2019 | 112 | 1026 | 18 | 0 |
-| LockingSequencer | 06-09-2019 | 116 | 1336 | 34 | 3 |
-| euclideansequencer | 09-09-2019 | 276 | 4508 | 49 | 7 |
-| TuringMachine | 10-09-2019 | 152 | 2504 | 64 | 7 |
-| PolyCrossClock | 10-04-2020 | 167 | 4000 | 73 | 0 |
+| ADSR | 30-09-2026 | 206 | 4114 (4366 before PR #2) | 72 (103) | 0 (before PR #2: 1, plus 2 that only clang reported) |
+| Template | 30-09-2026 | 106 | 1026 | 18 | 0 |
+| LockingSequencer | 30-09-2026 | 113 | 1336 | 34 | 2 (3 before phase 1) |
+| euclideansequencer | 30-09-2026 | 273 | 4508 | 49 | 6 (7) |
+| TuringMachine | 30-09-2026 | 147 | 2504 | 64 | 6 (7) |
+| PolyCrossClock | 30-09-2026 | 159 | 3936 (4000 before phase 1) | 65 (73) | 0 |
 
 ## Hardware facts that shape the plan
 
@@ -41,14 +41,14 @@ Taken from `hardware/Cascadence-Schematic.pdf` and `software/CCTV/avr`.
 
 - **MCU:** ATtiny84 at 8 MHz internal clock, no hardware multiplier, `double` is 4 bytes (same as `float`), `int` is 16 bits.
 - **DAC:** MCP4812, which is 10-bit. Comments in the sketches say MCP4802 or MCP4822. The 12-bit frame the sketches send is right for the whole family; the DAC ignores the bottom two data bits.
-- **DAC wiring rules out hardware SPI.** The DAC's data-in is on PA6, which is the USI's data-in pin, and chip select sits on PA5, the USI's data-out pin. The USI can only transmit on PA5, so `tinySPI` cannot drive this DAC. Every sketch includes `tinySPI.h` and none calls it; the README's "they rely on tinySPI" is wrong. Bit-banging is the only option, and direct port writes make it roughly ten times faster than `shiftOut`.
+- **DAC wiring rules out hardware SPI.** The DAC's data-in is on PA6, which is the USI's data-in pin, and chip select sits on PA5, the USI's data-out pin. The USI can only transmit on PA5, so `tinySPI` cannot drive this DAC. Five sketches included `tinySPI.h` without calling it, and the README said they rely on it; phase 1 removed both. Bit-banging is the only option, and direct port writes make it roughly ten times faster than `shiftOut`.
 - **Clock/gate input:** an NPN inverter with the LED in its collector. PB2 reads LOW while the jack is high. Every sketch handles this correctly.
 - **Toggle:** SPDT between +5 V and ground on PA7, so no pull-up is needed. HIGH means "A", "quantized" or "synced" in every sketch. The lever's left side reads HIGH, verified on the module on 29-09-2026.
 - **Output stage:** TL072 non-inverting stage with two 10 k resistors, so gain 2 and roughly 8.2 V full scale from the DAC's 4.096 V. The product page says 0 to 10 V. Measure the real full scale before calibrating anything in volts; the Turing quantizer depends on it.
 
 ## Findings per firmware
 
-Line numbers refer to the files as they are on `master`. The ADSR links point at the reviewed version (commit b6390ae), because PR #2 has changed that file since.
+Line numbers refer to the files as they were reviewed, and every link points at that version (commit b6390ae), because PR #2 and phase 1 have changed the files since.
 
 ### ADSR
 
@@ -73,34 +73,34 @@ Remaining, in priority order:
 
 7. **No trigger mode.** The attack only advances while the gate is high, so a short trigger produces almost no envelope, although the README calls the input "trigger/gate".
 8. **Loop mode: resolved by removal**, 27-09-2026. See item 3.
-9. Hygiene: `MOSI` and `SCK` constant names clash with ATTinyCore macros, `setOutput` masks the high byte with 0xFF so a value of 4096 or more would flip control bits, the A and B code blocks are copy-pasted, dead `trigger` global, unused variables, comments name the wrong DAC.
+9. Hygiene: `setOutput` masks the high byte with 0xFF so a value of 4096 or more would flip control bits, the A and B code blocks are copy-pasted, and comments name the wrong DAC. PR #2 removed the dead `trigger` global and the unused variables, and phase 1 renamed the `MOSI` and `SCK` constants that clashed with ATTinyCore macros.
 
 ### Euclidean Sequencer
 
-1. **Neither channel is initialised at boot.** Lines 57 and 58 read `updatevalues[A];`, which references the function instead of calling it. avr-gcc says "statement is a reference, not call, to function". The channel the toggle does not select has length 0 until the toggle is flipped once, so its step computation divides by zero and its pattern is empty. Only the random inversion fires on that output, about 3 % of steps ([euclideansequencer.ino:57](firmware/euclideansequencer/euclideansequencer.ino#L57)).
-2. **Patterns glitch every 32 clocks.** One shared step counter runs 0 to 31 and each channel takes `(step + offset) mod length` ([euclideansequencer.ino:70](firmware/euclideansequencer/euclideansequencer.ino#L70)). For any length that does not divide 32, the pattern restarts mid-cycle when the counter wraps. Fix direction: one step counter per channel, wrapped at that channel's length.
-3. **Randomness at zero still inverts 1 step in 31.** `random(31) <= 0` is true whenever the draw is 0 ([euclideansequencer.ino:82](firmware/euclideansequencer/euclideansequencer.ino#L82)). The README promises no randomness at full counter-clockwise.
-4. **B fires 40 ms after A.** Each pulse is a blocking 40 ms delay, and A is sent first ([euclideansequencer.ino:85](firmware/euclideansequencer/euclideansequencer.ino#L85)). When both channels hit on the same step, B is late by a 32nd note at 120 BPM, and two pulses block the loop for 80 ms, which caps the clock rate near 12 Hz.
+1. **Neither channel is initialised at boot.** Lines 57 and 58 read `updatevalues[A];`, which references the function instead of calling it. avr-gcc says "statement is a reference, not call, to function". The channel the toggle does not select has length 0 until the toggle is flipped once, so its step computation divides by zero and its pattern is empty. Only the random inversion fires on that output, about 3 % of steps ([euclideansequencer.ino:57](https://github.com/FrankNFT-labs/cascadence/blob/b6390ae7c036aa3c369e67d43f6b8b86f140d007/firmware/euclideansequencer/euclideansequencer.ino#L57)).
+2. **Patterns glitch every 32 clocks.** One shared step counter runs 0 to 31 and each channel takes `(step + offset) mod length` ([euclideansequencer.ino:70](https://github.com/FrankNFT-labs/cascadence/blob/b6390ae7c036aa3c369e67d43f6b8b86f140d007/firmware/euclideansequencer/euclideansequencer.ino#L70)). For any length that does not divide 32, the pattern restarts mid-cycle when the counter wraps. Fix direction: one step counter per channel, wrapped at that channel's length.
+3. **Randomness at zero still inverts 1 step in 31.** `random(31) <= 0` is true whenever the draw is 0 ([euclideansequencer.ino:82](https://github.com/FrankNFT-labs/cascadence/blob/b6390ae7c036aa3c369e67d43f6b8b86f140d007/firmware/euclideansequencer/euclideansequencer.ino#L82)). The README promises no randomness at full counter-clockwise.
+4. **B fires 40 ms after A.** Each pulse is a blocking 40 ms delay, and A is sent first ([euclideansequencer.ino:85](https://github.com/FrankNFT-labs/cascadence/blob/b6390ae7c036aa3c369e67d43f6b8b86f140d007/firmware/euclideansequencer/euclideansequencer.ino#L85)). When both channels hit on the same step, B is late by a 32nd note at 120 BPM, and two pulses block the loop for 80 ms, which caps the clock rate near 12 Hz.
 5. **No hysteresis on the pots.** The pattern is recomputed on every pass from raw readings, so length and density flicker at bin edges, and the generator with its 128-byte stack array runs continuously for nothing.
-6. Minor: `map()` gives its top value only at a reading of exactly 1023, so length 32 and full offset are one-count-wide bins; busy-wait on the clock input blocks pot reads while the clock is high; `findlength` shifts a 32-bit value by 32, which is undefined but harmless in practice; unused variable.
+6. Minor: `map()` gives its top value only at a reading of exactly 1023, so length 32 and full offset are one-count-wide bins; busy-wait on the clock input blocks pot reads while the clock is high; `findlength` shifts a 32-bit value by 32, which is undefined but harmless in practice. Phase 1 removed an unused variable.
 
 Good: `euclid()` returned the correct pulse count and length for every one of the 528 length/density pairs in a host sweep using AVR shift semantics. Keep it.
 
 ### Turing Machine
 
-1. **Output wraps instead of clipping.** Scale (0 to 4095) plus shift (0 to 2047) can reach 6142 ([TuringMachine.ino:88](firmware/TuringMachine/TuringMachine.ino#L88)). `setOutput` drops bit 12, so 6142 lands on the DAC as 2046: with scale and offset both high, the pitch jumps down instead of pinning at the top. Fix direction: clamp to 4095.
+1. **Output wraps instead of clipping.** Scale (0 to 4095) plus shift (0 to 2047) can reach 6142 ([TuringMachine.ino:88](https://github.com/FrankNFT-labs/cascadence/blob/b6390ae7c036aa3c369e67d43f6b8b86f140d007/firmware/TuringMachine/TuringMachine.ino#L88)). `setOutput` drops bit 12, so 6142 lands on the DAC as 2046: with scale and offset both high, the pitch jumps down instead of pinning at the top. Fix direction: clamp to 4095.
 2. **Quantizer constant is for the prototype.** 83 counts per semitone assumes 4.096 V full scale; the comment on line 39 says so. The shipped output stage doubles that, which makes the step about 41.7 counts, so the quantizer snaps to whole tones. Fix direction: measure volts per count on a real unit, set the constant from that, and consider a stored calibration value.
-3. **CV lands 40 ms late whenever a pulse fires.** The blocking pulse on B runs before the CV write to A ([TuringMachine.ino:102](firmware/TuringMachine/TuringMachine.ino#L102)). Steps with a pulse and steps without get different CV timing. Fix direction: write the CV first, make the pulse non-blocking.
+3. **CV lands 40 ms late whenever a pulse fires.** The blocking pulse on B runs before the CV write to A ([TuringMachine.ino:102](https://github.com/FrankNFT-labs/cascadence/blob/b6390ae7c036aa3c369e67d43f6b8b86f140d007/firmware/TuringMachine/TuringMachine.ino#L102)). Steps with a pulse and steps without get different CV timing. Fix direction: write the CV first, make the pulse non-blocking.
 4. Same no-op init as the Euclidean sketch (lines 63 and 64). Harmless here because `loop()` reads the pots every pass, except when the clock is already low at power-up, which processes one step with length 0 and divides by zero inside `map()`.
 5. `random()` is never seeded, so the register plays the same sequence after every power-up. Seed from a floating ADC channel or a counter in EEPROM.
-6. Minor: busy-wait on the clock; unused variables; `map()` top bin one count wide.
+6. Minor: busy-wait on the clock; `map()` top bin one count wide. Phase 1 removed the unused variables.
 
 Not a bug: `seq_randomness` is a `char` holding -10 to 100. avr-gcc's `char` is signed, so full counter-clockwise inverts every step and full clockwise locks the loop, as documented.
 
 ### Locking Sequencer
 
-1. **Pitch jitters.** Pots are read raw on every pass and one ADC count is one DAC step on the 10-bit DAC, about 8 mV or roughly 10 cents at 1 V per octave ([LockingSequencer.ino:76](firmware/LockingSequencer/LockingSequencer.ino#L76)). Fix direction: the same dead-band change detection the ADSR uses.
-2. **The first clock plays step 2.** `step` is incremented before the first output ([LockingSequencer.ino:63](firmware/LockingSequencer/LockingSequencer.ino#L63)).
+1. **Pitch jitters.** Pots are read raw on every pass and one ADC count is one DAC step on the 10-bit DAC, about 8 mV or roughly 10 cents at 1 V per octave ([LockingSequencer.ino:76](https://github.com/FrankNFT-labs/cascadence/blob/b6390ae7c036aa3c369e67d43f6b8b86f140d007/firmware/LockingSequencer/LockingSequencer.ino#L76)). Fix direction: the same dead-band change detection the ADSR uses.
+2. **The first clock plays step 2.** `step` is incremented before the first output ([LockingSequencer.ino:63](https://github.com/FrankNFT-labs/cascadence/blob/b6390ae7c036aa3c369e67d43f6b8b86f140d007/firmware/LockingSequencer/LockingSequencer.ino#L63)).
 3. `currentoutput` is read before it is written, which the compiler flags. Harmless, but initialise it.
 4. Feature gap: no quantizer, while the Turing Machine has one. A shared quantizer helper serves both.
 
@@ -108,28 +108,28 @@ Not a bug: `seq_randomness` is a `char` holding -10 to 100. avr-gcc's `char` is 
 
 Found with a host simulation of the sketch against a faked clock, at 120 BPM with four divisions.
 
-1. **Free-running divisions drift off the beat.** Ticks are rescheduled from the time the loop noticed them, not from when they were due ([PolyCrossClock.ino:98](firmware/PolyCrossClock/PolyCrossClock.ino#L98)). Loop latency accumulates and output B collects it once per division. Scheduling from the due time gave zero lag over 600 beats in the same simulation. A clock patched into the input hides this, because every pulse resets both outputs.
+1. **Free-running divisions drift off the beat.** Ticks are rescheduled from the time the loop noticed them, not from when they were due ([PolyCrossClock.ino:98](https://github.com/FrankNFT-labs/cascadence/blob/b6390ae7c036aa3c369e67d43f6b8b86f140d007/firmware/PolyCrossClock/PolyCrossClock.ino#L98)). Loop latency accumulates and output B collects it once per division. Scheduling from the due time gave zero lag over 600 beats in the same simulation. A clock patched into the input hides this, because every pulse resets both outputs.
 
    | Assumed time per loop pass | Lag after 30 beats | Lag after 120 beats |
    |---|---|---|
    | 0.4 to 0.6 ms | 23 ms | 92 ms |
    | 0.8 to 1.2 ms | 51 ms | 192 ms |
 
-2. **Randomness knob wraps.** The reading goes into an 8-bit variable ([PolyCrossClock.ino:62](firmware/PolyCrossClock/PolyCrossClock.ino#L62)), so the knob sweeps from no drops to a quarter of pulses dropped four times over its travel.
+2. **Randomness knob wraps.** The reading goes into an 8-bit variable ([PolyCrossClock.ino:62](https://github.com/FrankNFT-labs/cascadence/blob/b6390ae7c036aa3c369e67d43f6b8b86f140d007/firmware/PolyCrossClock/PolyCrossClock.ino#L62)), so the knob sweeps from no drops to a quarter of pulses dropped four times over its travel.
 3. **One stretched pulse every 71.6 minutes.** `now >= next` comparisons break when `micros()` rolls over; the simulation showed a 163 ms pulse instead of 40 ms. Fix direction: compare `(long)(now - next) >= 0`.
-4. **Input sync is level-triggered.** While the input is low, both outputs are retriggered every pass, so they stay high for the input pulse length plus 40 ms, and the tempo restarts from the end of the input pulse ([PolyCrossClock.ino:87](firmware/PolyCrossClock/PolyCrossClock.ino#L87)). Fix direction: edge detection.
-5. **Docs are wrong.** The header says tempo 30 to 120 BPM, the knob spans 30 to 600. The README says the clock input is unused; it resets both outputs. The README's cross and randomness texts are copied from the Euclidean entry.
-6. Minor: `tinySPI` include; `previousValues` is written and never read; one `setOutput(0, ...)` where the others say `A`.
+4. **Input sync is level-triggered.** While the input is low, both outputs are retriggered every pass, so they stay high for the input pulse length plus 40 ms, and the tempo restarts from the end of the input pulse ([PolyCrossClock.ino:87](https://github.com/FrankNFT-labs/cascadence/blob/b6390ae7c036aa3c369e67d43f6b8b86f140d007/firmware/PolyCrossClock/PolyCrossClock.ino#L87)). Fix direction: edge detection.
+5. **Docs are wrong.** The header says tempo 30 to 120 BPM, the knob spans 30 to 600. The README says the clock input is unused; it resets both outputs. The README's cross and randomness texts are copied from the Euclidean entry. Phase 1 corrected the header and the README entry.
+6. Minor, all fixed in phase 1: `tinySPI` include; `previousValues` is written and never read; one `setOutput(0, ...)` where the others say `A`.
 
 ### Template
 
-Compiles clean. Problems are in what it teaches: the `tinySPI` include that cannot work on this board, a blocking 40 ms `SendPulse`, an extra brace pair inside `loop()`, and a comment that says the shutdown flag disables chip select. After phase 3 it should become the smallest possible consumer of the shared library.
+Compiles clean. Problems are in what it teaches: the `tinySPI` include that cannot work on this board, a blocking 40 ms `SendPulse`, an extra brace pair inside `loop()`, and a comment that says the shutdown flag disables chip select. Phase 1 removed the include, the extra braces and the wrong comment. After phase 3 it should become the smallest possible consumer of the shared library.
 
 ## Cross-cutting findings
 
 - **Six copies of the same boilerplate.** Pin constants, DAC constants and `setOutput` are pasted into every sketch. A fix in one never reaches the others.
-- **The board package hides every warning.** `platform.txt` compiles with `-w` ([platform.txt:7](software/CCTV/avr/platform.txt#L7) and [line 12](software/CCTV/avr/platform.txt#L12)). With `-Wall -Wextra` the sketches produce 18 warnings, two of which are the no-op init bugs above.
-- **`MOSI` and `SCK` as constant names** break the build on ATTinyCore, which defines them as macros. Only the repo's own package accepts the sketches as written.
+- **The board package hides every warning.** `platform.txt` compiles with `-w` ([platform.txt:7](https://github.com/FrankNFT-labs/cascadence/blob/b6390ae7c036aa3c369e67d43f6b8b86f140d007/software/CCTV/avr/platform.txt#L7) and [line 12](https://github.com/FrankNFT-labs/cascadence/blob/b6390ae7c036aa3c369e67d43f6b8b86f140d007/software/CCTV/avr/platform.txt#L12)). With `-Wall -Wextra` the sketches produce 18 warnings, two of which are the no-op init bugs above. After phase 1, 14 remain: 12 from those two bugs and 2 from the Locking Sequencer's uninitialised `currentoutput`.
+- **`MOSI` and `SCK` as constant names** break the build on ATTinyCore, which defines them as macros. Only the repo's own package accepted the sketches as written, until phase 1 renamed the constants to `DAC_MOSI` and `DAC_SCK`.
 - **`setOutput` never clamps or masks.** Any value of 4096 or more corrupts the DAC control bits. Only the Turing Machine reaches that today, but a shared write should refuse it.
 - **Blocking timing everywhere.** `delay(40)` pulses and `while (clock low)` loops in four sketches. Every timing complaint above traces back to this.
 - **No tests, no CI.** The ADSR harness in `firmware/ADSR/test/` is the first executable check in the repo.
@@ -146,7 +146,7 @@ Compiles clean. Problems are in what it teaches: the `tinySPI` include that cann
 ### ADR-2: Direct port writes for the DAC, drop `tinySPI`
 
 - **Context.** Hardware SPI cannot reach the DAC on this board (see hardware facts). `shiftOut` costs three slow pin writes per bit, roughly 50 per DAC write, and dominates every loop.
-- **Decision.** `dacWrite` toggles PA4, PA5 and PA6 through `PORTA` directly, clamps the value to 4095, and keeps the MCP48x2 frame layout. Remove every `tinySPI.h` include and the README claim.
+- **Decision.** `dacWrite` toggles PA4, PA5 and PA6 through `PORTA` directly, clamps the value to 4095, and keeps the MCP48x2 frame layout. Remove every `tinySPI.h` include and the README claim; phase 1 did.
 - **Consequences.** DAC writes drop from an estimated 250 to 350 µs to under 30 µs, which makes phase 3 timing work possible. The bit order and timing must be checked once on a scope. Sketches no longer need an external library to build.
 
 ### ADR-3: Non-blocking timing model
@@ -165,17 +165,16 @@ Compiles clean. Problems are in what it teaches: the `tinySPI` include that cann
 
 - **Context.** `-w` hid the two no-op init bugs for six years.
 - **Decision.** Replace `-w` with `-Wall -Wextra` in `platform.txt`, add `-flto` (saves about ten per cent of flash on the ADSR build), keep the 6012-byte limit.
-- **Consequences.** Users see warnings in the IDE; existing sketches must be warning-free first (phase 1).
+- **Consequences.** Users see warnings in the IDE; existing sketches must be warning-free first. Update 30-09-2026: the last 14 warnings come from bugs that need a failing test before the fix, so the switch moves to the end of phase 2. `-flto` changes the generated code and with it the ADSR's loop speed, which sets its envelope times, so it waits for phase 5's fixed tick or ships earlier with a listening check.
 
 ## Phases
 
 ```mermaid
 flowchart LR
-  P0["Phase 0 (done)<br/>ADSR fixes + harness<br/>merged 29-09-2026"] --> P1["Phase 1<br/>Hygiene, all sketches"]
-  P1 --> P2["Phase 2<br/>Bug fixes per firmware,<br/>test first"]
+  P0["Phase 0 (done)<br/>ADSR fixes + harness<br/>merged 29-09-2026"] --> P1["Phase 1 (done)<br/>Hygiene, all sketches"]
   P1 --> P4["Phase 4<br/>Shared fake board + CI"]
+  P4 --> P2["Phase 2<br/>Bug fixes per firmware,<br/>test first"]
   P2 --> P3["Phase 3<br/>Cascadence library,<br/>repo as sketchbook"]
-  P4 --> P3
   P3 --> P5["Phase 5<br/>Feature upgrades"]
 ```
 
@@ -194,29 +193,38 @@ Hardware checklist before merging:
 - [x] Hold a long gate, confirm attack, decay and sustain on both outputs; release, confirm both fall to zero.
 - [x] Leave the module running for 10 minutes with a sequencer clock, confirm no stuck output.
 
-### Phase 1: Hygiene across all sketches
+### Phase 1: Hygiene across all sketches (done)
 
-Effort 2 to 3 hours. Risk low.
+Done on branch `fix/phase-1-hygiene` on 30-09-2026, one concern per commit:
 
-- Remove `tinySPI.h` from all six sketches and the README claim.
-- Rename `MOSI` and `SCK` constants to `DAC_MOSI` and `DAC_SCK`.
-- Replace the `updatevalues[A];` references with calls (Euclidean, Turing Machine). This is a behaviour change: the Euclidean's second channel starts working at boot. Commit it as a fix, separately.
-- Clamp in `setOutput`.
-- Remove unused variables and dead code flagged above, fix the Template's stray braces and comments.
-- `platform.txt`: `-Wall -Wextra`, `-flto`.
-- Fix the PolyCrossClock README entry and header.
-- Gate: every sketch compiles with zero warnings, sizes unchanged or smaller.
+- Removed the unused `tinySPI.h` include from five sketches, and the README claim.
+- Renamed `MOSI` and `SCK` to `DAC_MOSI` and `DAC_SCK`, so ATTinyCore builds the sketches as they are.
+- Removed unused variables, including PolyCrossClock's never-read `previousValues` copy.
+- Fixed the Template's stray braces and shutdown comment, and wrote PolyCrossClock's one `setOutput(0, ...)` as `A`.
+- Corrected the PolyCrossClock header and README entry.
+- Added a `.gitignore` for macOS `.DS_Store` files.
+
+Every sketch builds to byte-identical firmware before and after, except PolyCrossClock, which lost 64 bytes of flash and 8 of RAM; a symbol comparison shows that only `updatevalues()` shrank. No hardware check was needed. Warnings under `-Wall -Wextra` went from 17 to 14.
+
+Moved out on 30-09-2026, because each changes behaviour or timing, and a behaviour fix needs a failing test first while only the ADSR has a harness:
+
+- The `updatevalues[A];` no-op init fix, to phase 2 (Euclidean and Turing Machine).
+- The clamp in `setOutput`, to phase 2 for the Turing Machine, the only sketch that goes past 4095; phase 3's shared `dacWrite` clamps for every sketch.
+- `-Wall -Wextra` in `platform.txt`, to the end of phase 2, when the last warnings are gone.
+- `-flto`, to after phase 5's fixed-tick ADSR, or earlier with a listening check (ADR-5).
 
 ### Phase 2: Bug fixes per firmware, test first
 
-Each firmware on its own `fix/` branch, each fix preceded by a failing host test. Risk low, all changes are local.
+Each firmware on its own `fix/` branch, each fix preceded by a failing host test, so this phase starts after phase 4's shared fake board. Risk low, all changes are local.
 
 | Firmware | Fixes | Effort |
 |---|---|---|
 | Euclidean | Per-channel step counters; randomness 0 means none; init both channels; simultaneous non-blocking A and B pulses; pot dead band | 4 h |
-| Turing Machine | Clamp output; CV before pulse, non-blocking pulse; seed `random()`; semitone constant from a measured full scale | 3 h plus one hardware measurement |
+| Turing Machine | Clamp output; init both channels; CV before pulse, non-blocking pulse; seed `random()`; semitone constant from a measured full scale | 3 h plus one hardware measurement |
 | PolyCrossClock | Due-time scheduling; wrap-safe comparisons; full randomness range; edge-triggered sync | 3 h |
 | Locking Sequencer | Pot dead band; start on step 1; initialise `currentoutput` | 1.5 h |
+
+Gate: after the last fix, switch `platform.txt` from `-w` to `-Wall -Wextra` (ADR-5); every sketch must then compile with zero warnings.
 
 Hardware checklist: Euclidean length 5, density 2, run 64 clocks, confirm no restart at clock 32 and both outputs fire together. Turing scale and offset both full, confirm the CV pins at the top instead of dropping. PolyCrossClock free-running for 5 minutes with the toggle on quantized, confirm B stays on the beat.
 
@@ -231,7 +239,7 @@ Effort 1 to 1.5 days. Risk medium: behaviour of every sketch must be re-verified
 
 ### Phase 4: Shared fake board and CI (ADR-4)
 
-Effort half a day to a day. Risk low. Can run in parallel with phase 2.
+Effort half a day to a day. Risk low. Runs before phase 2, so every phase 2 fix starts with a failing host test.
 
 - Generalise `firmware/ADSR/test/` into `firmware/test/` with one fake board and one `make` target per sketch.
 - Add `.github/workflows/firmware.yml`: install `arduino-cli` and `arduino:avr` 1.8.8, compile every sketch with the repo package, fail above 6012 bytes, run the host tests.
@@ -251,9 +259,9 @@ Effort 2 to 3 days total. Risk medium, these change how the module feels; each n
    ```bash
    mkdir -p /tmp/cascadence-sketchbook/hardware && cp -R software/CCTV /tmp/cascadence-sketchbook/hardware/ && ARDUINO_DIRECTORIES_USER=/tmp/cascadence-sketchbook arduino-cli compile --fqbn CCTV:avr:CCTV firmware/ADSR
    ```
-2. Compile with warnings (until ADR-5 lands in the package). ATTinyCore defines `MOSI` and `SCK` as macros, so until phase 1 renames those constants, run this on a scratch copy with them renamed:
+2. Compile with warnings (until ADR-5 lands in the package):
    ```bash
-   arduino-cli compile --fqbn "ATTinyCore:avr:attinyx4:chip=84,clock=8internal,pinmapping=old" --warnings all firmware/ADSR
+   arduino-cli compile --fqbn "ATTinyCore:avr:attinyx4:chip=84,clock=8internal,pinmapping=old" --warnings all --clean firmware/ADSR
    ```
 3. Host tests:
    ```bash
@@ -265,6 +273,7 @@ Effort 2 to 3 days total. Risk medium, these change how the module feels; each n
 
 - 27-09-2026: ADSR parameters stay live while a gate is held, for all four knobs (ADSR item 4).
 - 27-09-2026: ADSR loop mode removed; the LFO use is out of scope for now (ADSR items 3 and 8).
+- 30-09-2026: phase 1 stays behaviour-neutral. The no-op init fix and the `setOutput` clamp move to phase 2, `-Wall -Wextra` to the end of phase 2, and `-flto` to after phase 5's fixed tick (ADR-5). Phase 4 runs before phase 2.
 
 ## Decisions needed
 

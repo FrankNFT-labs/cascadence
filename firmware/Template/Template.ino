@@ -4,9 +4,6 @@
 
 //This file is to give you all the functions you need to start writing your own Cascadence firmware
 
-#include <tinySPI.h>
-//You will need to install the TinySPI library Using the 'Manage Libraries' panel
-    
 //DAC Definitions 
 const int GAIN_1 = 0x1;
 const int GAIN_2 = 0x0;
@@ -21,8 +18,8 @@ const int POTS[4]={0,1,2,3};  //the 4 pots from top to bottom
 const int CLK_IN = 8;
 const int SW = 7;
 //DAC pins
-const int MOSI = 6;
-const int SCK = 4;
+const int DAC_MOSI = 6;
+const int DAC_SCK = 4;
 const int PIN_CS = 5;
 
 unsigned int values[4]; //Global array to store potentiometer values
@@ -41,8 +38,8 @@ void setup()
 
 
 //mosi, sck, and pin_cs used for spi dac (mcp4822)
-  pinMode(MOSI,OUTPUT);
-  pinMode(SCK,OUTPUT);
+  pinMode(DAC_MOSI,OUTPUT);
+  pinMode(DAC_SCK,OUTPUT);
   
   
   digitalWrite(PIN_CS,HIGH);  //prepare the dac CS line (active low)
@@ -55,8 +52,6 @@ void setup()
 
 void loop() {
 
-{
-  
   if(digitalRead(CLK_IN) == LOW)  //we've received a clock pulse!
     {
       //Insert your code here to handle a clock
@@ -66,14 +61,13 @@ void loop() {
       //setOutput(B, GAIN_2, NO_SHTDWN, 2000);
       //B or A to choose channels
       //GAIN_2 or GAIN_1 to choose 1x gain or 2x gain (I always use 2x)
-      //NO_SHTDWN or SHTDWN to disable the DAC_CS
+      //NO_SHTDWN keeps the DAC output on, SHTDWN switches it off
       //2000 - is the value out of 4096 to send out to the DAC
       
     }
     
 
     updatevalues();//subroutine to grab the 4 pot values
-}
 }
 
 
@@ -106,7 +100,7 @@ void setOutput(byte channel, byte gain, byte shutdown, unsigned int val)
   //shutdown is to disable the DAC output, 0 for shutdown, 1 for no shutdown
    
   digitalWrite(PIN_CS, LOW);
-  shiftOut(MOSI,SCK,MSBFIRST,highByte);
-  shiftOut(MOSI,SCK,MSBFIRST,lowByte);
+  shiftOut(DAC_MOSI,DAC_SCK,MSBFIRST,highByte);
+  shiftOut(DAC_MOSI,DAC_SCK,MSBFIRST,lowByte);
   digitalWrite(PIN_CS, HIGH);
 }

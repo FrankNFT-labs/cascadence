@@ -1,6 +1,6 @@
 In this folder you will find the firmwares available for Cascadence. If you wish to submit your own firmware please get in touch with me (fil@cctv.fm).
 
-They are all written in Arduino, and rely on tinySPI (https://github.com/JChristensen/tinySPI)
+They are all written in Arduino and need no extra libraries: they drive the DAC by toggling its pins directly.
 
 ## Locking Sequencer - a dual 4 step sequencer
 
@@ -55,21 +55,21 @@ B Output - Sends a pulse if the LSB in the shift register is '1'. You can use th
 
 ## PolyCrossClock
 
-A Clock Generator with polyrhtymic divisions that hard sync or drift when the division is a non-integer of the beat. A cross-rhtyhm generator 
+A clock generator with polyrhythmic divisions that hard sync or drift when the number of divisions per beat is not a whole number. A cross-rhythm generator.
 
-Clock in - Unused
+Clock in - Reset. While the input is high, both outputs restart, and the tempo counts on from the end of the input pulse.
 
 Potentiometers from top to bottom:
-1. Tempo - Clock Tempo from 30BPM to Really Fast
-2. Length - the divions the clock from 0 to 16 
-3. Cross - shifts the sequence right this number of steps. Scales from 1 to Length. 1 will play every division, 2 every other, etc
-4. Randomness - The likelyhood of a pulse state being inverted. At full counter-clockwise, 0 randomness is added. At full clockwise every pulse will be inverted (no pulse becomes pulse, pulse becomes no pulse). In between min and max, the sequence will change at every iteration. The 'coin' is flipped every time a pulse is about to be sent out.
+1. Tempo - Clock tempo from 30 BPM fully counter-clockwise to 600 BPM fully clockwise
+2. Divisions - Splits each beat into 1 to 16 divisions
+3. Cross - B plays every Cross-th division, from 1 to 8. 1 plays every division, 2 every other, etc. With 4 divisions and a cross of 3, B pulses every three quarters of a beat: three against four.
+4. Randomness - The chance that a pulse on B is skipped. At full counter-clockwise almost none are, about 1 in 1000. For now the reading wraps around, so the chance rises from there to about 1 in 4, four times over the knob's travel.
 
 Toggle Switch - Engages a Division Quantizer. Left is quantized, Right is unquantized.
 
-A Output - Clock Trigger
+A Output - Clock trigger, one 40 ms pulse per beat
 
-B Output - Clock Division output
+B Output - Clock division output, 40 ms pulses
 
 ## Template
 

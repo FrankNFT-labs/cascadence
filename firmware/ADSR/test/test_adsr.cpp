@@ -105,8 +105,8 @@ void digitalWrite(uint8_t pin, uint8_t value) {
 }
 
 void shiftOut(uint8_t dataPin, uint8_t clockPin, uint8_t bitOrder, uint8_t value) {
-  if (dataPin != MOSI || clockPin != SCK)
-    throw TestFailure{"shiftOut on the wrong pins: the DAC data line is MOSI and its clock is SCK"};
+  if (dataPin != DAC_MOSI || clockPin != DAC_SCK)
+    throw TestFailure{"shiftOut on the wrong pins: the DAC data line is DAC_MOSI and its clock is DAC_SCK"};
   if (bitOrder != MSBFIRST) throw TestFailure{"shiftOut LSB first: the MCP48x2 expects MSB first"};
   if (board.dac_selected) board.frame.push_back(value);
 }

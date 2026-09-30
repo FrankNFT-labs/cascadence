@@ -1,5 +1,3 @@
-#include <tinySPI.h>
-
 //LockingSequencer 
 //For Cascadence
 //Developed with Modular Seattle for Velocity 2019
@@ -16,8 +14,8 @@ const int POTS[4]={0,1,2,3};
 const int CLK_IN = 8;
 const int SW = 7;
 
-const int MOSI = 6;
-const int SCK = 4;
+const int DAC_MOSI = 6;
+const int DAC_SCK = 4;
 const int PIN_CS = 5;
 
 unsigned int outputs[2][4];
@@ -36,8 +34,8 @@ void setup()
 
 
 //mosi, sck, and pin_cs used for spi dac (mcp4822)
-  pinMode(MOSI,OUTPUT);
-  pinMode(SCK,OUTPUT);
+  pinMode(DAC_MOSI,OUTPUT);
+  pinMode(DAC_SCK,OUTPUT);
   
   
   digitalWrite(PIN_CS,HIGH);
@@ -53,7 +51,6 @@ void setup()
 
 void loop() {
   int step = 0;
-  unsigned int tempanalog;
   int counter = 0;
   unsigned int currentoutput[2];
   while(1)
@@ -110,7 +107,7 @@ void setOutput(byte channel, byte gain, byte shutdown, unsigned int val)
   //shutdown is to disable the DAC output, 0 for shutdown, 1 for no shutdown
    
   digitalWrite(PIN_CS, LOW);
-  shiftOut(MOSI,SCK,MSBFIRST,highByte);
-  shiftOut(MOSI,SCK,MSBFIRST,lowByte);
+  shiftOut(DAC_MOSI,DAC_SCK,MSBFIRST,highByte);
+  shiftOut(DAC_MOSI,DAC_SCK,MSBFIRST,lowByte);
   digitalWrite(PIN_CS, HIGH);
 }

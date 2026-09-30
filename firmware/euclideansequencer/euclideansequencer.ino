@@ -1,5 +1,3 @@
-#include <tinySPI.h>
-
 //Euclidean Sequencer
 //For Cascadence
 //Developed with Modular Seattle for Velocity 2019
@@ -19,8 +17,8 @@ const int POTS[4]={0,1,2,3};
 const int CLK_IN = 8;
 const int SW = 7;
 
-const int MOSI = 6;
-const int SCK = 4;
+const int DAC_MOSI = 6;
+const int DAC_SCK = 4;
 const int PIN_CS = 5;
 
 unsigned int values[2][4];
@@ -46,8 +44,8 @@ void setup()
 
 
 //mosi, sck, and pin_cs used for spi dac (mcp4822)
-  pinMode(MOSI,OUTPUT);
-  pinMode(SCK,OUTPUT);
+  pinMode(DAC_MOSI,OUTPUT);
+  pinMode(DAC_SCK,OUTPUT);
   
   
   digitalWrite(PIN_CS,HIGH);
@@ -117,7 +115,6 @@ uint64_t euclid(int n, int k){ // inputs: n=total, k=beats, o = offset
   int remainder = pauses%pulses;  
   long int workbeat[n];
   long int outbeat;
-  long int working;
   int workbeat_count=n;
   int a; 
   int b; 
@@ -249,8 +246,8 @@ void setOutput(byte channel, byte gain, byte shutdown, unsigned int val)
   //shutdown is to disable the DAC output, 0 for shutdown, 1 for no shutdown
    
   digitalWrite(PIN_CS, LOW);
-  shiftOut(MOSI,SCK,MSBFIRST,highByte);
-  shiftOut(MOSI,SCK,MSBFIRST,lowByte);
+  shiftOut(DAC_MOSI,DAC_SCK,MSBFIRST,highByte);
+  shiftOut(DAC_MOSI,DAC_SCK,MSBFIRST,lowByte);
   digitalWrite(PIN_CS, HIGH);
 }
 
