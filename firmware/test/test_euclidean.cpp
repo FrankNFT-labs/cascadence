@@ -119,6 +119,16 @@ TEST(knobs_edit_only_the_output_the_toggle_selects) {
   EXPECT_EQ(steps_with_pulses(B, 8), "xxxxxxxx");
 }
 
+TEST(both_outputs_play_their_rhythm_from_the_first_clock_without_a_toggle_flip) {
+  board.random_below = highest_draw;
+  set_rhythm(3, 8);
+  board.pot[RANDOMNESS] = 0;
+  fake::boot();  // toggle left, so loop() sets up only A: B depends on setup()
+  run_clocks(8);
+  EXPECT_EUCLIDEAN(steps_with_pulses(A, 8), 3);
+  EXPECT_EUCLIDEAN(steps_with_pulses(B, 8), 3);
+}
+
 TEST(randomness_fully_clockwise_inverts_every_step) {
   set_rhythm(3, 8);
   board.pot[RANDOMNESS] = 1023;  // every draw from random(31) is at most the setting
