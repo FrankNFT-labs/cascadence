@@ -26,6 +26,9 @@ unsigned char seq_length;
 char seq_randomness;
 unsigned int seq_scale;
 unsigned int seq_shift;
+const unsigned long PULSE_LENGTH = 40000;  //trigger length in microseconds
+unsigned long pulsestart;  //when the pulse on B started, from micros()
+boolean pulsing;
 
 unsigned int maxvalues[]={0,1,3,7,15,31,63,127,255,511,1023,2047,4095,8191,16383,32767,65535};  //max posible values for a given bit length
 
@@ -64,10 +67,11 @@ void loop() {
 boolean lastbit;
 unsigned int outputvalue;
 unsigned int leftover;
+boolean clockwashigh = false;
 while(1)
 {
-  
-  if(digitalRead(CLK_IN) == LOW)  //we've received a clock pulse!
+  boolean clockhigh = digitalRead(CLK_IN) == LOW;  //the input transistor inverts the jack
+  if(clockhigh && !clockwashigh)  //we've received a clock pulse!
     {
       lastbit=bitRead(sequence,(seq_length-1));
 
@@ -95,15 +99,13 @@ while(1)
           outputvalue = outputvalue-leftover;
       }
 
+      setOutput(A, GAIN_2, NO_SHTDWN, outputvalue);  //the CV first, so it is in place when the pulse starts
       if(lastbit == 1)
-        SendPulse(B);
-        
-      setOutput(A, GAIN_2, NO_SHTDWN, outputvalue);
-      
-      while(digitalRead(CLK_IN) == LOW);
+        StartPulse();
       
     }
-    
+    clockwashigh = clockhigh;
+    EndPulse();
 
     updatevalues();
 }
@@ -125,11 +127,20 @@ void updatevalues(void)
 
 }
 
-void SendPulse (boolean chan)
+void StartPulse()  //on B; EndPulse() ends it, so the loop never waits
 {
-  setOutput(chan, GAIN_2, NO_SHTDWN, 0xFFF);
-  delay(40);
-  setOutput(chan, GAIN_2, NO_SHTDWN, 0);
+  setOutput(B, GAIN_2, NO_SHTDWN, 0xFFF);
+  pulsestart = micros();
+  pulsing = true;
+}
+
+void EndPulse()
+{
+  if(pulsing && micros()-pulsestart >= PULSE_LENGTH)  //unsigned subtraction survives micros() wrapping around
+  {
+    setOutput(B, GAIN_2, NO_SHTDWN, 0);
+    pulsing = false;
+  }
 }
 void setOutput(byte channel, byte gain, byte shutdown, unsigned int val)
 {

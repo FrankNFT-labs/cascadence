@@ -12,7 +12,8 @@
 
 // The prototypes the Arduino builder generates for the sketch.
 void updatevalues(void);
-void SendPulse(boolean chan);
+void StartPulse();
+void EndPulse();
 void setOutput(byte channel, byte gain, byte shutdown, unsigned int val);
 
 #include "../TuringMachine/TuringMachine.ino"
@@ -33,7 +34,7 @@ const int ALWAYS_FLIP = 0;
 const int NEVER_FLIP = 1023;
 
 const uint64_t FIRST_CLOCK = 50 * fake::MS;
-const uint64_t CLOCK_PERIOD = 100 * fake::MS;  // room for the blocking 40 ms pulse on B
+const uint64_t CLOCK_PERIOD = 100 * fake::MS;  // longer than the 40 ms pulse on B
 const uint64_t CLOCK_WIDTH = 5 * fake::MS;
 
 void set_up(int randomness, int length, int scale, int offset, bool quantized) {
@@ -92,6 +93,38 @@ TEST(with_scale_and_offset_both_full_the_cv_pins_at_the_top_instead_of_wrapping)
   EXPECT_EQ(cv.size(), 16);
   for (unsigned value : cv) EXPECT_AT_LEAST(value, 2047);  // never below the offset
   EXPECT_EQ(*std::max_element(cv.begin(), cv.end()), fake::FULL_SCALE);
+}
+
+TEST(the_cv_changes_at_the_clock_also_on_steps_with_a_pulse) {
+  set_up(ALWAYS_FLIP, 4, 1023, 0, false);
+  fake::boot();
+  run_clocks(8);
+  EXPECT_EQ(board.dac[A].size(), 8);  // one CV per step
+  for (size_t step = 0; step < board.dac[A].size(); ++step)
+    EXPECT_LESS(board.dac[A][step].time_us - (FIRST_CLOCK + step * CLOCK_PERIOD), fake::MS);
+  EXPECT_AT_LEAST(fake::pulses(B).size(), 1);
+}
+
+TEST(a_clock_faster_than_a_pulse_still_moves_the_register_on_every_clock) {
+  set_up(ALWAYS_FLIP, 4, 1023, 0, false);
+  fake::boot();
+  const uint64_t period = 30 * fake::MS;  // shorter than the 40 ms pulse
+  board.clock_input = fake::clock_pulses(period, CLOCK_WIDTH, FIRST_CLOCK);
+  fake::run_until(FIRST_CLOCK + 7 * period + period / 2);
+  EXPECT_EQ(board.dac[A].size(), 8);
+}
+
+TEST(a_pulse_lasts_40_ms_while_the_clock_stays_high_for_longer) {
+  set_up(ALWAYS_FLIP, 4, 1023, 0, false);
+  fake::boot();
+  board.clock_input = fake::clock_pulses(CLOCK_PERIOD, CLOCK_PERIOD / 2, FIRST_CLOCK);  // high for 50 ms
+  fake::run_until(FIRST_CLOCK + 7 * CLOCK_PERIOD + CLOCK_PERIOD / 2);
+  std::vector<fake::Pulse> pulses = fake::pulses(B);
+  EXPECT_EQ(pulses.size(), 4);  // the recycled bit is a 1 on half the steps
+  for (const fake::Pulse &pulse : pulses) {
+    EXPECT_AT_LEAST(pulse.end_us - pulse.start_us, 40 * fake::MS);
+    EXPECT_LESS(pulse.end_us - pulse.start_us, 41 * fake::MS);
+  }
 }
 
 TEST(a_clock_already_high_at_power_up_plays_its_step_with_the_knob_settings) {
