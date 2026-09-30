@@ -22,17 +22,21 @@ Toggle switch - changes active editing of envelope A or B.
 Every control is explained in [ADSR/README.md](ADSR/README.md).
 
 ## Euclidean Sequencer
-Generates mathematically derived rhythms from a set of input conditions. 32 step.
+Generates mathematically derived rhythms from a set of input conditions: two sequences, each spreading a number of pulses as evenly as possible over up to 32 steps.
 
-Clock in - Trigger input
+Clock in - Trigger input. Every clock moves both sequences one step on. Each sequence counts through its own length, so two different lengths play against each other.
 
 Potentiometers from top to bottom:
-1. Length - the total step length of the sequence from 0 to 32
+1. Length - the total step length of the sequence, from 1 to 32
 2. Density - the number of pulses to distribute in the sequence, scales from 1 to Length
-3. Offset - shifts the sequence right this number of steps. Scales from 1 to Length
-4. Randomness - The likelyhood of a pulse state being inverted. At full counter-clockwise, 0 randomness is added. At full clockwise every pulse will be inverted (no pulse becomes pulse, pulse becomes no pulse). In between min and max, the sequence will change at every iteration. The 'coin' is flipped every time a pulse is about to be sent out.
+3. Offset - rotates the sequence by 0 to Length - 1 steps; each step of offset makes every pulse come one step earlier. At 0, each cycle starts on a pulse.
+4. Randomness - The likelihood of a step being inverted (no pulse becomes pulse, pulse becomes no pulse). At full counter-clockwise, 0 randomness is added. At full clockwise every step will be inverted. In between min and max, the sequence will change at every iteration. The 'coin' is flipped on every step.
 
-Toggle Switch - changes active editing of sequence A or B.
+Toggle Switch - Left edits sequence A, right edits sequence B, and the other keeps its settings. Flipping it changes nothing by itself: a knob you turn afterwards changes only its own setting of the selected sequence, as on the ADSR.
+
+A Output - 40 ms pulses of sequence A
+
+B Output - 40 ms pulses of sequence B. When both sequences have a pulse on the same step, A and B fire together.
 
 ## Turing Machine
 

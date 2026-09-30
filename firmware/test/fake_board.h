@@ -109,9 +109,11 @@ std::vector<unsigned> values_written_while_clock_high(int channel);
 // clock's period, '.' where none does. The clocks come every period_us from first_us.
 std::string steps_with_pulses(int channel, uint64_t first_us, uint64_t period_us, int clocks);
 
-// The lowest knob position that Arduino's map(knob, 0, 1023, out_min, out_max)
-// turns into `wanted`, which is how the sketches scale their knobs.
-int knob_for(long wanted, long out_min, long out_max);
+// The lowest knob position that Arduino's map(knob, 0, in_max, out_min, out_max)
+// turns into `wanted`, which is how the sketches scale their knobs: most with
+// in_max 1023, the Euclidean with 1024, which gives each value an equal share
+// of the knob's travel.
+int knob_for(long wanted, long out_min, long out_max, long in_max = 1023);
 
 }  // namespace fake
 

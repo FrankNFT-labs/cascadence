@@ -77,6 +77,8 @@ Remaining, in priority order:
 
 ### Euclidean Sequencer
 
+Fixed on branch `fix/euclidean` on 30-09-2026, each fix with a host test that failed before it: items 1 to 5, 7 and 8, and from item 6 the one-count-wide top values and the busy-wait. The dead band needed the knob scaling fixed first, so every knob value now gets an equal share of the travel. The `findlength` shift remains. The branch waits for the phase 2 hardware checklist while the module runs the ADSR.
+
 1. **Neither channel is initialised at boot.** Lines 57 and 58 read `updatevalues[A];`, which references the function instead of calling it. avr-gcc says "statement is a reference, not call, to function". The channel the toggle does not select has length 0 until the toggle is flipped once, so its step computation divides by zero and its pattern is empty. Only the random inversion fires on that output, about 3 % of steps ([euclideansequencer.ino:57](https://github.com/FrankNFT-labs/cascadence/blob/b6390ae7c036aa3c369e67d43f6b8b86f140d007/firmware/euclideansequencer/euclideansequencer.ino#L57)).
 2. **Patterns glitch every 32 clocks.** One shared step counter runs 0 to 31 and each channel takes `(step + offset) mod length` ([euclideansequencer.ino:70](https://github.com/FrankNFT-labs/cascadence/blob/b6390ae7c036aa3c369e67d43f6b8b86f140d007/firmware/euclideansequencer/euclideansequencer.ino#L70)). For any length that does not divide 32, the pattern restarts mid-cycle when the counter wraps. Fix direction: one step counter per channel, wrapped at that channel's length.
 3. **Randomness at zero still inverts 1 step in 31.** `random(31) <= 0` is true whenever the draw is 0 ([euclideansequencer.ino:82](https://github.com/FrankNFT-labs/cascadence/blob/b6390ae7c036aa3c369e67d43f6b8b86f140d007/firmware/euclideansequencer/euclideansequencer.ino#L82)). The README promises no randomness at full counter-clockwise.
@@ -84,6 +86,7 @@ Remaining, in priority order:
 5. **No hysteresis on the pots.** The pattern is recomputed on every pass from raw readings, so length and density flicker at bin edges, and the generator with its 128-byte stack array runs continuously for nothing.
 6. Minor: `map()` gives its top value only at a reading of exactly 1023, so length 32 and full offset are one-count-wide bins; busy-wait on the clock input blocks pot reads while the clock is high; `findlength` shifts a 32-bit value by 32, which is undefined but harmless in practice. Phase 1 removed an unused variable.
 7. **At offset 0 the rhythm starts on a rest.** The sketch plays the pattern from `euclid()`'s lowest bit, so three pulses over eight steps come out as `.x..x..x` instead of `x..x..x.`. It is still a Euclidean rhythm, rotated by one step, but most Euclidean sequencers put the first pulse on the downbeat. Found by the phase 4 tests. Decision 30-09-2026: fix it. Read from its highest bit, the pattern starts with a pulse for all 528 length/density pairs.
+8. **Flipping the toggle overwrote the selected output.** The selected output followed all four knobs, so a flip copied their positions into it, and flipping back to A overwrote A with B's settings ([euclideansequencer.ino:105](https://github.com/FrankNFT-labs/cascadence/blob/b6390ae7c036aa3c369e67d43f6b8b86f140d007/firmware/euclideansequencer/euclideansequencer.ino#L105)). Found on 30-09-2026 while adding the dead band. Decision 30-09-2026: work as the ADSR does, where a flip changes nothing and a knob turned afterwards edits only its own setting of the selected output.
 
 Good: `euclid()` returned the correct pulse count and length for every one of the 528 length/density pairs in a host sweep using AVR shift semantics. Keep it.
 
@@ -226,7 +229,7 @@ Each firmware on its own `fix/` branch, each fix preceded by a failing host test
 | PolyCrossClock | Due-time scheduling; wrap-safe comparisons; full randomness range; edge-triggered sync | 3 h |
 | Locking Sequencer | Pot dead band; start on step 1; initialise `currentoutput` | 1.5 h |
 
-The phase 4 tests work around two Euclidean bugs and should lose the workarounds with the fixes: they flip the toggle once before the first clock, and draw no zeros from `random()`.
+The phase 4 tests worked around two Euclidean bugs: they flipped the toggle once before the first clock, and drew no zeros from `random()`. Branch `fix/euclidean` fixes both bugs and drops the workarounds.
 
 Order, decided 30-09-2026: the Euclidean and the Turing Machine first, because they are in use next to the ADSR, then PolyCrossClock and the Locking Sequencer. The ADSR has no phase 2 work: phase 0 fixed its bugs, and what remains of it is phase 5 feature work. Each firmware gets its own branch and draft PR. The module runs the ADSR in the meantime, so a branch waits for its hardware checklist until the module is free, and several can be open at once. A branch touches only its own sketch, its own test file and its own entries in the docs, so the branches merge in any order; the shared tables and the executive summary are updated on master after each merge.
 

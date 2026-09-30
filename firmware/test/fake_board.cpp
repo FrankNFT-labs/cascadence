@@ -74,9 +74,9 @@ std::string steps_with_pulses(int channel, uint64_t first_us, uint64_t period_us
   return steps;
 }
 
-int knob_for(long wanted, long out_min, long out_max) {
+int knob_for(long wanted, long out_min, long out_max, long in_max) {
   for (int knob = 0; knob <= 1023; ++knob)
-    if (::map(knob, 0, 1023, out_min, out_max) == wanted) return knob;
+    if (::map(knob, 0, in_max, out_min, out_max) == wanted) return knob;
   throw TestFailure{"no knob position maps to " + std::to_string(wanted)};
 }
 

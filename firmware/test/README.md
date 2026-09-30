@@ -27,13 +27,13 @@ UndefinedBehaviorSanitizer is on by default. With GCC on Linux it names each pro
 | File | Sketch | Checks |
 |---|---|---|
 | `test_adsr.cpp` | ADSR | Envelope shape, knob edits per envelope, the pot scan, the dead band near zero, release, retrigger |
-| `test_euclidean.cpp` | Euclidean Sequencer | Three pulses spread evenly over eight steps and repeating, knob edits per output, full randomness inverting every step |
+| `test_euclidean.cpp` | Euclidean Sequencer | Even rhythms that start on a pulse and keep their cycle past 32 clocks, both outputs set up at power-up, knob edits per output and toggle flips that change nothing, knob scaling and dead band, randomness at both ends, A and B firing together without blocking the clock |
 | `test_locking.cpp` | Locking Sequencer | Four clocks play the four stored steps, and the toggle side decides which sequence the knobs edit |
 | `test_polycrossclock.cpp` | PolyCrossClock | 30 and 600 BPM, whole divisions, cross, and a reset from the clock input |
 | `test_template.cpp` | Template | Outputs at zero after boot, knob reads, the 40 ms `SendPulse()` |
 | `test_turing.cpp` | Turing Machine | Inverted and locked loops, the offset, the semitone quantizer |
 
-The tests describe what each sketch does right today; the known bugs get their failing tests in phase 2 of `UPGRADE-PLAN.md`. Until then the Euclidean tests work around two of them, and should drop the workarounds when the fixes land. Every test flips the toggle once before the first clock, because `setup()` leaves both outputs unset. The tests that expect an exact rhythm also draw no zeros from `random()`, because a draw of zero inverts a step even with the randomness knob fully counter-clockwise.
+The tests describe what each sketch does right today; the known bugs get their failing tests in phase 2 of `UPGRADE-PLAN.md`.
 
 ## Limits
 

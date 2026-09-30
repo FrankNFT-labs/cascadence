@@ -21,19 +21,24 @@ const int DAC_MOSI = 6;
 const int DAC_SCK = 4;
 const int PIN_CS = 5;
 
-unsigned int values[2][4];
+const int THRESHOLD = 5;  //dead band for the knobs in ADC counts, as in the ADSR
+int lastread[4];  //each knob's reading when it last moved; a move edits only the output the toggle selects, as in the ADSR
+int values[2][4];  //the knob readings each output took
 const int A = 0;
 const int B = 1;
 long int euclids[2];
-unsigned char stepnumber=0;
+unsigned char stepnumber[2];  //each output counts through its own rhythm, 0 to its length - 1
 unsigned char offset_stepnumber[2];
 unsigned char seq_length[2];
 unsigned char seq_offset[2];
 unsigned char seq_density[2];
 unsigned char seq_randomness[2];
+const unsigned long PULSE_LENGTH = 40000;  //trigger length in microseconds
+unsigned long pulsestart[2];  //when each output's pulse started, from micros()
+boolean pulsing[2];
 void setup()
 {
-
+  unsigned char x;
 
   pinMode(POTS[0], INPUT);
   pinMode(POTS[1], INPUT);
@@ -52,53 +57,61 @@ void setup()
   pinMode(PIN_CS, OUTPUT);
 
 
-  updatevalues[A];
-  updatevalues[B];
+  for(x=0;x<4;x++)  //both outputs start from the knobs
+  {
+    lastread[x]=analogRead(POTS[x]);
+    values[A][x]=lastread[x];
+    values[B][x]=lastread[x];
+  }
+  setpattern(A);
+  setpattern(B);
   
 }
 
 void loop() {
 int pulse = false;
+boolean clockwashigh = false;
 while(1)
 {
-  
-  if(digitalRead(CLK_IN) == LOW)  //we've received a clock pulse!
+  boolean clockhigh = digitalRead(CLK_IN) == LOW;  //the input transistor inverts the jack
+  if(clockhigh && !clockwashigh)  //we've received a clock pulse!
     {
       //calculate the actual step number for each sequencer
-      offset_stepnumber[A]=stepnumber+seq_offset[A];
+      offset_stepnumber[A]=stepnumber[A]+seq_offset[A];
       if(offset_stepnumber[A]>=seq_length[A])
         offset_stepnumber[A]=offset_stepnumber[A] % seq_length[A];
         
-      offset_stepnumber[B]=stepnumber+seq_offset[B];
+      offset_stepnumber[B]=stepnumber[B]+seq_offset[B];
       if(offset_stepnumber[B]>=seq_length[B])
         offset_stepnumber[B]=offset_stepnumber[B] % seq_length[B];
       
       pulse=false;
-      if(bitRead(euclids[A],offset_stepnumber[A]) == 1) //if there's a pulse
+      if(bitRead(euclids[A],seq_length[A]-1-offset_stepnumber[A]) == 1) //if there's a pulse (euclid() puts the first step in the highest bit)
         pulse=true;
 
-      if (random(MAXSTEPLENGTH) <= seq_randomness[A] )  //or if there's a randomly generated pulse
+      if (random(MAXSTEPLENGTH) < seq_randomness[A] )  //or if there's a randomly generated pulse
         pulse = !pulse;
       if(pulse==1)  
-        SendPulse(A); //send one
+        StartPulse(A); //send one
 
       pulse=false;
-      if(bitRead(euclids[B],offset_stepnumber[B]) == 1) //if there's a pulse
+      if(bitRead(euclids[B],seq_length[B]-1-offset_stepnumber[B]) == 1) //if there's a pulse
         pulse = true;
-      if (random(MAXSTEPLENGTH) <= seq_randomness[B] )
+      if (random(MAXSTEPLENGTH) < seq_randomness[B] )
         pulse = !pulse;
       if(pulse == 1)
-        SendPulse(B); //send one
+        StartPulse(B); //send one
       
-      stepnumber++;
-      if(stepnumber>MAXSTEPLENGTH)
-      {
-        stepnumber = 0;
-      }
-      while(digitalRead(CLK_IN) == LOW);
+      stepnumber[A]++;
+      if(stepnumber[A]>=seq_length[A])
+        stepnumber[A] = 0;
+      stepnumber[B]++;
+      if(stepnumber[B]>=seq_length[B])
+        stepnumber[B] = 0;
       
     }
-    
+    clockwashigh = clockhigh;
+    EndPulses();
 
     updatevalues(!digitalRead(SW));
 }
@@ -215,26 +228,52 @@ uint64_t euclid(int n, int k){ // inputs: n=total, k=beats, o = offset
 void updatevalues(boolean chan)
 {
   unsigned char x;
+  int reading;
+  boolean moved=false;
    for(x=0;x<4;x++)
   {
-    values[chan][x]=analogRead(POTS[x]);  //read the 4 pots so we don't have junk for the first sequence
+    reading=analogRead(POTS[x]);
+    if(reading<lastread[x]-THRESHOLD || reading>lastread[x]+THRESHOLD)  //ignore smaller changes, so a knob at the edge of a step cannot flicker
+    {
+      lastread[x]=reading;
+      values[chan][x]=reading;  //a turned knob edits only the output the toggle selects; a flip alone changes nothing
+      moved=true;
+    }
   }
+  if(moved)
+    setpattern(chan);
+}
 
-  seq_length[chan]=map(values[chan][0],0,1023,1,MAXSTEPLENGTH+1);
-  seq_density[chan]=map(values[chan][1],0,1023,1,seq_length[chan]);
-  seq_offset[chan]=map(values[chan][2],0,1023,0,seq_length[chan]);
-  seq_randomness[chan]=map(values[chan][3],0,1023,0,MAXSTEPLENGTH);
+void setpattern(boolean chan)  //rebuilds an output's rhythm from the knob readings it took
+{
+  //map(reading,0,1024,lowest,highest+1) gives each value from lowest to highest an equal share of the knob's travel
+  seq_length[chan]=map(values[chan][0],0,1024,1,MAXSTEPLENGTH+2);
+  seq_density[chan]=map(values[chan][1],0,1024,1,seq_length[chan]+1);
+  seq_offset[chan]=map(values[chan][2],0,1024,0,seq_length[chan]);
+  seq_randomness[chan]=map(values[chan][3],0,1024,0,MAXSTEPLENGTH+1);
 
   if(seq_density[chan]>seq_length[chan])
     seq_density[chan]=seq_length[chan];
   euclids[chan]=euclid(seq_length[chan],seq_density[chan]);
 }
 
-void SendPulse (boolean chan)
+void StartPulse (boolean chan)  //EndPulses() ends it, so both outputs fire together and no clock is missed
 {
   setOutput(chan, GAIN_2, NO_SHTDWN, 0xFFF);
-  delay(40);
-  setOutput(chan, GAIN_2, NO_SHTDWN, 0);
+  pulsestart[chan] = micros();
+  pulsing[chan] = true;
+}
+
+void EndPulses()
+{
+  for(byte chan=A; chan<=B; chan++)
+  {
+    if(pulsing[chan] && micros()-pulsestart[chan] >= PULSE_LENGTH)  //unsigned subtraction survives micros() wrapping around
+    {
+      setOutput(chan, GAIN_2, NO_SHTDWN, 0);
+      pulsing[chan] = false;
+    }
+  }
 }
 void setOutput(byte channel, byte gain, byte shutdown, unsigned int val)
 {
