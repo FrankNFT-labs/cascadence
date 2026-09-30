@@ -32,14 +32,17 @@ arduino-cli compile --fqbn "ATTinyCore:avr:attinyx4:chip=84,clock=8internal,pinm
 
 `pinmapping=old` matches the pin numbering of the repo's `tiny14` variant. `--clean` forces a full rebuild, because arduino-cli prints no warnings for files it takes from its cache. ATTinyCore's own core adds one `#warning` about that pin mapping; ignore it. The ADSR is warning-free under `-Wall -Wextra`.
 
-Host tests exist for the ADSR only:
+Host tests live in `firmware/test/`, one binary per sketch, all on one fake board:
 
 ```bash
-make -C firmware/ADSR/test                                                    # build with UBSan, run all tests
-make -C firmware/ADSR/test clean && make -C firmware/ADSR/test SANITIZERS=   # without the sanitizer
+make -C firmware/test                                             # build with UBSan, run every test binary
+make -C firmware/test test_adsr && firmware/test/test_adsr        # one sketch
+make -C firmware/test clean && make -C firmware/test SANITIZERS=  # without the sanitizer
 ```
 
-There is no single-test filter: `main()` runs every `TEST` in its own forked process and prints PASS or FAIL per test, and the whole suite takes well under a second. Flags given on the make command line are not a build dependency, which is why the second line cleans first. The runner needs a POSIX system.
+The harness compiles the sketches with GCC, as the firmware is: clang rejects `updatevalues[A];` in the Euclidean and Turing Machine, which avr-gcc only warns about. The Makefile picks the newest `g++-NN` on the path, then `g++`, and accepts only a real GCC (on macOS, `brew install gcc`). GCC on macOS has no UBSan runtime, so there the sanitizer runs in trap mode and the runner reports undefined behaviour without naming it; GCC on Linux names it. There is no single-test filter: each binary runs every `TEST` in its own forked process and prints PASS or FAIL per test. Flags given on the make command line are not a build dependency, which is why the last line cleans first. The runner needs a POSIX system.
+
+CI (`.github/workflows/firmware.yml`) runs on every push to master and every pull request: it builds every sketch with the repo board package, which fails a sketch above 6012 bytes, and runs `make -C firmware/test` with GCC on Ubuntu, where UBSan names what it finds.
 
 To upload, build with `--output-dir` and write the hex over the 6-pin ISP header with a USBasp. This is the route for the owner's module, whose USB bootloader never worked: its reset vector skipped micronucleus, and its fuses disable self-programming.
 
@@ -79,19 +82,24 @@ Timing is mostly blocking. The Locking Sequencer, Euclidean and Turing Machine b
 - The pot-to-alpha mapping `sqrt(k * cos((1023 - reading) / 795))` is strongly non-linear: long times live only in the last quarter of a knob's travel.
 - Keep the explicit prototypes near the top of the sketch. The Arduino builder would generate them, but the host harness compiles the `.ino` as plain C++.
 
-### Host test harness (`firmware/ADSR/test/`)
+### Host test harness (`firmware/test/`)
 
-- `test_adsr.cpp` includes `fake_arduino.h` (types, API declarations, and Arduino's float `round()` macro), then `#include "../ADSR.ino"`, then defines the fake board with the sketch's own pin constants.
-- The fake DAC decodes every frame, records it per channel, and fails a test on a wrong shutdown or gain bit, wrong pins, or LSB-first bit order. The gate is a countdown of high reads, inverted like the real input. A pass that reads the gate low more than twice fails as "running without a gate".
-- Every test runs in a forked child, and the fork is the reset: `setup()` does not reinitialise the sketch's globals, so `boot()` throws if a test calls it twice.
-- The Arduino builder compiles only the sketch folder's root and `src/`, so `test/` never reaches the firmware.
+- `fake_arduino.h` declares the Arduino API the sketches use and defines Arduino's `round()`, `bitRead()` and `bitSet()` macros. Include it after every standard header.
+- `fake_board.h` and `fake_board.cpp` implement that API as the board: pots, toggle (left reads HIGH), the clock or gate input (inverted: a high jack reads LOW), and a DAC that decodes every frame, records it per channel with its virtual time, and fails a test on a wrong shutdown or gain bit, wrong pins, or LSB-first bit order.
+- Time is virtual: each Arduino call advances it by an estimate of its ATtiny84 cost, and `delay()` by the delay. `fake::at()` schedules knob and toggle changes, `fake::clock_pulses()` drives the input, and `fake::run_until()` ends a `loop()` that never returns by throwing `fake::ScenarioEnd` from the next Arduino call. Give such a sketch one `run_until()` per test: a second call restarts `loop()` from the top, with fresh locals.
+- Each `test_<sketch>.cpp` declares the prototypes the Arduino builder would generate, then includes the sketch. `test_runner.h` stays free of POSIX headers, because sketch globals collide with them (PolyCrossClock's `sync`); the forking `main()` lives in `test_runner.cpp`.
+- The ADSR tests drive the gate as a countdown of high reads, so each read is one envelope step, and fail a pass that reads the gate low more than twice as "running without a gate".
+- Every test runs in a forked child, and the fork is the reset: `setup()` does not reinitialise the sketch's globals, so `fake::boot()` throws if a test calls it twice.
+- The host has a 32-bit `int` and a 64-bit `long` and `double`, so overflow, wrap-around and float rounding differ from the ATtiny84.
 
 ## Verification before calling a firmware change done
 
 1. The build with the repo board package succeeds and stays within 6012 bytes.
 2. The ATTinyCore warnings build is clean.
-3. `make -C firmware/ADSR/test` passes when the ADSR changed.
+3. `make -C firmware/test` passes.
 4. Anything touching timing, voltages or panel behaviour gets the hardware checklist of its phase in `UPGRADE-PLAN.md`. Host tests model the board but not its timing or analog stages.
+
+CI runs 1 and 3 on every pull request; 2 and 4 stay manual.
 
 ## Documentation that tracks the code
 

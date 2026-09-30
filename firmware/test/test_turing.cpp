@@ -1,0 +1,96 @@
+// Host-side tests for the Turing Machine: a shift register that recycles its
+// last bit on every clock, flipped with a chance the randomness knob sets. The
+// register's value, scaled and offset, is the CV on A, and recycling a 1 sends
+// a pulse on B. With the toggle left, the CV snaps to semitones.
+
+#include <set>
+
+#include "test_runner.h"
+#include "fake_board.h"
+#include "fake_arduino.h"
+
+// The prototypes the Arduino builder generates for the sketch.
+void updatevalues(void);
+void SendPulse(boolean chan);
+void setOutput(byte channel, byte gain, byte shutdown, unsigned int val);
+
+#include "../TuringMachine/TuringMachine.ino"
+
+namespace {
+
+using fake::board;
+
+// Knobs from top to bottom.
+const int RANDOMNESS = POTS[0];
+const int LENGTH = POTS[1];
+const int SCALE = POTS[2];
+const int OFFSET = POTS[3];
+
+// Fully counter-clockwise flips the recycled bit on every step. Fully
+// clockwise never flips it, which locks the loop.
+const int ALWAYS_FLIP = 0;
+const int NEVER_FLIP = 1023;
+
+const uint64_t FIRST_CLOCK = 50 * fake::MS;
+const uint64_t CLOCK_PERIOD = 100 * fake::MS;  // room for the blocking 40 ms pulse on B
+const uint64_t CLOCK_WIDTH = 5 * fake::MS;
+
+void set_up(int randomness, int length, int scale, int offset, bool quantized) {
+  board.pot[RANDOMNESS] = randomness;
+  board.pot[LENGTH] = fake::knob_for(length, 1, MAXSEQLENGTH);
+  board.pot[SCALE] = scale;
+  board.pot[OFFSET] = offset;
+  board.toggle_left = quantized;
+}
+
+// Clocks the sketch `clocks` times. loop() never returns, so this is the
+// test's only run: schedule knob and toggle changes before calling it.
+void run_clocks(int clocks) {
+  board.clock_input = fake::clock_pulses(CLOCK_PERIOD, CLOCK_WIDTH, FIRST_CLOCK);
+  fake::run_until(FIRST_CLOCK + (clocks - 1) * CLOCK_PERIOD + CLOCK_PERIOD / 2);
+}
+
+long distinct(const std::vector<unsigned> &values) {
+  return std::set<unsigned>(values.begin(), values.end()).size();
+}
+
+TEST(randomness_fully_counter_clockwise_inverts_the_loop_so_it_repeats_every_twice_the_length) {
+  set_up(ALWAYS_FLIP, 4, 1023, 0, false);
+  fake::boot();
+  run_clocks(24);
+  std::vector<unsigned> cv = fake::values_written_while_clock_high(A);
+  EXPECT_EQ(cv.size(), 24);
+  for (size_t step = 8; step < cv.size(); ++step) EXPECT_EQ(cv[step], cv[step - 8]);
+  EXPECT_EQ(distinct(cv), 8);
+  EXPECT_EQ(fake::pulses(B).size(), 12);  // the recycled bit is a 1 on half the steps
+}
+
+TEST(randomness_fully_clockwise_locks_the_loop_to_its_length) {
+  set_up(ALWAYS_FLIP, 4, 1023, 0, false);  // flipping first fills the register with a pattern
+  fake::boot();
+  fake::at(FIRST_CLOCK + 2 * CLOCK_PERIOD + CLOCK_PERIOD / 2, [] { board.pot[RANDOMNESS] = NEVER_FLIP; });
+  run_clocks(16);
+  std::vector<unsigned> cv = fake::values_written_while_clock_high(A);
+  EXPECT_EQ(cv.size(), 16);
+  for (size_t step = 3 + 4; step < cv.size(); ++step) EXPECT_EQ(cv[step], cv[step - 4]);  // locked from step 3
+  EXPECT_EQ(distinct(std::vector<unsigned>(cv.begin() + 3, cv.end())), 4);
+}
+
+TEST(with_scale_at_zero_the_offset_alone_sets_the_cv) {
+  set_up(ALWAYS_FLIP, 8, 0, 1023, false);  // the full offset is half the DAC range
+  fake::boot();
+  run_clocks(8);
+  EXPECT_EQ(fake::values_written_while_clock_high(A), std::vector<unsigned>(8, 2047));
+}
+
+TEST(with_the_toggle_left_every_cv_step_is_a_whole_number_of_semitones) {
+  set_up(ALWAYS_FLIP, 4, 1023, 0, true);
+  fake::boot();
+  run_clocks(8);
+  std::vector<unsigned> cv = fake::values_written_while_clock_high(A);
+  EXPECT_EQ(cv.size(), 8);
+  for (unsigned value : cv) EXPECT_EQ(value % BITSPERSEMITONE, 0);
+  EXPECT_AT_LEAST(distinct(cv), 2);
+}
+
+}  // namespace

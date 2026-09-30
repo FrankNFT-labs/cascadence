@@ -83,6 +83,7 @@ Remaining, in priority order:
 4. **B fires 40 ms after A.** Each pulse is a blocking 40 ms delay, and A is sent first ([euclideansequencer.ino:85](https://github.com/FrankNFT-labs/cascadence/blob/b6390ae7c036aa3c369e67d43f6b8b86f140d007/firmware/euclideansequencer/euclideansequencer.ino#L85)). When both channels hit on the same step, B is late by a 32nd note at 120 BPM, and two pulses block the loop for 80 ms, which caps the clock rate near 12 Hz.
 5. **No hysteresis on the pots.** The pattern is recomputed on every pass from raw readings, so length and density flicker at bin edges, and the generator with its 128-byte stack array runs continuously for nothing.
 6. Minor: `map()` gives its top value only at a reading of exactly 1023, so length 32 and full offset are one-count-wide bins; busy-wait on the clock input blocks pot reads while the clock is high; `findlength` shifts a 32-bit value by 32, which is undefined but harmless in practice. Phase 1 removed an unused variable.
+7. **At offset 0 the rhythm starts on a rest.** The sketch plays the pattern from `euclid()`'s lowest bit, so three pulses over eight steps come out as `.x..x..x` instead of `x..x..x.`. It is still a Euclidean rhythm, rotated by one step, but most Euclidean sequencers put the first pulse on the downbeat. Found by the phase 4 tests.
 
 Good: `euclid()` returned the correct pulse count and length for every one of the 528 length/density pairs in a host sweep using AVR shift semantics. Keep it.
 
@@ -132,7 +133,7 @@ Compiles clean. Problems are in what it teaches: the `tinySPI` include that cann
 - **`MOSI` and `SCK` as constant names** break the build on ATTinyCore, which defines them as macros. Only the repo's own package accepted the sketches as written, until phase 1 renamed the constants to `DAC_MOSI` and `DAC_SCK`.
 - **`setOutput` never clamps or masks.** Any value of 4096 or more corrupts the DAC control bits. Only the Turing Machine reaches that today, but a shared write should refuse it.
 - **Blocking timing everywhere.** `delay(40)` pulses and `while (clock low)` loops in four sketches. Every timing complaint above traces back to this.
-- **No tests, no CI.** The ADSR harness in `firmware/ADSR/test/` is the first executable check in the repo.
+- **No tests, no CI.** Phase 4 added host tests for every sketch in `firmware/test/`, and a CI workflow that builds and tests every pull request.
 - **Licensing is unverified.** The ADSR is based on m0xpd's ADSRduino and the Euclidean generator on Tom Whitwell's code. The repository has no LICENSE file. Check both upstream licences before publishing derived work.
 
 ## Architecture decisions
@@ -160,6 +161,7 @@ Compiles clean. Problems are in what it teaches: the `tinySPI` include that cann
 - **Context.** Every finding above was found or confirmed by compiling the sketch as plain C++ against a fake board. Nothing runs automatically.
 - **Decision.** Generalise the ADSR harness into `firmware/test/` with one fake board (pots, toggle, inverted clock input, DAC recorder) shared by all sketches. Add a GitHub Actions workflow that compiles every sketch with the repo board package, fails when a sketch exceeds 6012 bytes, and runs the host tests with UndefinedBehaviorSanitizer.
 - **Consequences.** Regressions in logic are caught without hardware. Hardware still has to verify timing and voltages; the checklists below stay.
+- **Update 30-09-2026.** Done in phase 4. The tests compile with GCC rather than the system compiler, because clang rejects code that avr-gcc only warns about. GCC on macOS has no UBSan runtime, so there the sanitizer runs in trap mode; CI on Linux runs it in full.
 
 ### ADR-5: Board package with warnings on
 
@@ -172,7 +174,7 @@ Compiles clean. Problems are in what it teaches: the `tinySPI` include that cann
 ```mermaid
 flowchart LR
   P0["Phase 0 (done)<br/>ADSR fixes + harness<br/>merged 29-09-2026"] --> P1["Phase 1 (done)<br/>Hygiene, all sketches"]
-  P1 --> P4["Phase 4<br/>Shared fake board + CI"]
+  P1 --> P4["Phase 4 (done)<br/>Shared fake board + CI"]
   P4 --> P2["Phase 2<br/>Bug fixes per firmware,<br/>test first"]
   P2 --> P3["Phase 3<br/>Cascadence library,<br/>repo as sketchbook"]
   P3 --> P5["Phase 5<br/>Feature upgrades"]
@@ -224,6 +226,8 @@ Each firmware on its own `fix/` branch, each fix preceded by a failing host test
 | PolyCrossClock | Due-time scheduling; wrap-safe comparisons; full randomness range; edge-triggered sync | 3 h |
 | Locking Sequencer | Pot dead band; start on step 1; initialise `currentoutput` | 1.5 h |
 
+The phase 4 tests work around two Euclidean bugs and should lose the workarounds with the fixes: they flip the toggle once before the first clock, and draw no zeros from `random()`.
+
 Gate: after the last fix, switch `platform.txt` from `-w` to `-Wall -Wextra` (ADR-5); every sketch must then compile with zero warnings.
 
 Hardware checklist: Euclidean length 5, density 2, run 64 clocks, confirm no restart at clock 32 and both outputs fire together. Turing scale and offset both full, confirm the CV pins at the top instead of dropping. PolyCrossClock free-running for 5 minutes with the toggle on quantized, confirm B stays on the beat.
@@ -237,12 +241,14 @@ Effort 1 to 1.5 days. Risk medium: behaviour of every sketch must be re-verified
 - Migrate the Template first, then one sketch per branch: Locking Sequencer, Turing Machine, Euclidean, PolyCrossClock, ADSR.
 - Gate: host tests from phase 2 still pass unchanged against each migrated sketch, flash sizes go down, CI green.
 
-### Phase 4: Shared fake board and CI (ADR-4)
+### Phase 4: Shared fake board and CI (ADR-4, done)
 
-Effort half a day to a day. Risk low. Runs before phase 2, so every phase 2 fix starts with a failing host test.
+Done on branch `feat/phase-4-shared-test-board` on 30-09-2026, so every phase 2 fix can start with a failing host test:
 
-- Generalise `firmware/ADSR/test/` into `firmware/test/` with one fake board and one `make` target per sketch.
-- Add `.github/workflows/firmware.yml`: install `arduino-cli` and `arduino:avr` 1.8.8, compile every sketch with the repo package, fail above 6012 bytes, run the host tests.
+- `firmware/test/` holds one fake board, a test runner, and a Makefile that builds one test binary per sketch. The 12 ADSR tests moved over unchanged, and three reintroduced ADSR bugs fail the same tests on the old and the new harness.
+- Every other sketch has a test file, 30 tests in all. They describe what works today, and one mutant per sketch fails the test aimed at it.
+- The tests compile with GCC, because clang rejects code that avr-gcc only warns about. GCC on macOS has no UBSan runtime, so there the sanitizer runs in trap mode.
+- `.github/workflows/firmware.yml` builds every sketch with the repo package, which fails above 6012 bytes, and runs the host tests, on every push to master and every pull request. Its two actions are pinned to commits.
 
 ### Phase 5: Feature upgrades
 
@@ -265,7 +271,7 @@ Effort 2 to 3 days total. Risk medium, these change how the module feels; each n
    ```
 3. Host tests:
    ```bash
-   make -C firmware/ADSR/test
+   make -C firmware/test
    ```
 4. The hardware checklist of the phase.
 
@@ -280,3 +286,4 @@ Effort 2 to 3 days total. Risk medium, these change how the module feels; each n
 - Accept "set your sketchbook to `firmware/`" as the documented setup, or keep the copy-a-folder instructions and add a third one for the library.
 - Which full-scale output voltage the shipped units really have, measured on one unit. The Turing quantizer and any future V/oct work depend on it.
 - Whether to add a LICENSE file, which needs the two upstream licences checked first.
+- Whether the Euclidean should put the first pulse on the downbeat at offset 0, as most Euclidean sequencers do (Euclidean item 7).
