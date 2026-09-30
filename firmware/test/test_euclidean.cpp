@@ -12,6 +12,7 @@
 // The prototypes the Arduino builder generates for the sketch.
 uint64_t euclid(int n, int k);
 void updatevalues(boolean chan);
+void setpattern(boolean chan);
 void StartPulse(boolean chan);
 void EndPulses();
 void setOutput(byte channel, byte gain, byte shutdown, unsigned int val);

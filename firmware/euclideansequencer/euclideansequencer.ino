@@ -232,9 +232,12 @@ void updatevalues(boolean chan)
       moved=true;
     }
   }
-  if(!moved)
-    return;  //nothing to recompute
+  if(moved)
+    setpattern(chan);
+}
 
+void setpattern(boolean chan)  //rebuilds an output's rhythm from the knob readings it took
+{
   //map(reading,0,1024,lowest,highest+1) gives each value from lowest to highest an equal share of the knob's travel
   seq_length[chan]=map(values[chan][0],0,1024,1,MAXSTEPLENGTH+2);
   seq_density[chan]=map(values[chan][1],0,1024,1,seq_length[chan]+1);
