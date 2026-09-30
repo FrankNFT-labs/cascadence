@@ -56,8 +56,7 @@ void setup()
   pinMode(PIN_CS, OUTPUT);
 
 
-  updatevalues[A];
-  updatevalues[B];
+  updatevalues();
   
 }
 

@@ -83,6 +83,14 @@ TEST(with_scale_at_zero_the_offset_alone_sets_the_cv) {
   EXPECT_EQ(fake::values_written_while_clock_high(A), std::vector<unsigned>(8, 2047));
 }
 
+TEST(a_clock_already_high_at_power_up_plays_its_step_with_the_knob_settings) {
+  set_up(ALWAYS_FLIP, 8, 0, 1023, false);  // the full offset alone: half the DAC range
+  board.clock_input = fake::clock_pulses(CLOCK_PERIOD, CLOCK_WIDTH, 0);  // the jack is high from power-up
+  fake::boot();
+  fake::run_until(3 * CLOCK_PERIOD + CLOCK_PERIOD / 2);
+  EXPECT_EQ(fake::values_written_while_clock_high(A), std::vector<unsigned>(4, 2047));
+}
+
 TEST(with_the_toggle_left_every_cv_step_is_a_whole_number_of_semitones) {
   set_up(ALWAYS_FLIP, 4, 1023, 0, true);
   fake::boot();
