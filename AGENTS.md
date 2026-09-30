@@ -75,7 +75,7 @@ Every sketch is self-contained and carries its own copy of the board boilerplate
 
 Timing differs per sketch, and is mostly blocking:
 
-- Euclidean: busy-waits on the clock input and sends each pulse with a blocking `delay(40)`, as the Template's `SendPulse` teaches.
+- Euclidean: detects the clock's rising edge without waiting for it, and ends each 40 ms pulse from `micros()` instead of the blocking `delay(40)` the Template's `SendPulse` teaches, so A and B fire together and the loop never stops.
 - Locking Sequencer: busy-waits on the clock input.
 - Turing Machine: busy-waits on the clock input and sends its pulse with a blocking `delay(40)`.
 - PolyCrossClock: schedules its clocks from `micros()`.
