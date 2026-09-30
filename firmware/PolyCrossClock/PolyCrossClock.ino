@@ -1,17 +1,18 @@
 /*
  * PolyCrossClock
- * A polyrythm cros-rhythm generating clock with drifting or strict divisions
+ * A polyrhythm cross-rhythm generating clock with drifting or strict divisions
  * Adam Tindale
  * 2020
  * For Cascadence
  * 
- * INPUT 1 - NOT IMPLEMENTED. Sync Planned.
+ * INPUT 1 - Reset: while it is high, both outputs restart
  * OUTPUT 1 - Clock
  * OUTPUT 2 - Clock Division
- * KNOB 1 - Tempo 30 - 120
- * KNOB 2 - Length of Divisions 1-16 per beat
- * KNOB 3 - Cross 
- * KNOB 4 - Randomness per division step
+ * KNOB 1 - Tempo 30 - 600 BPM
+ * KNOB 2 - Divisions per beat 1-16
+ * KNOB 3 - Cross 1-8: B plays every Cross-th division
+ * KNOB 4 - Randomness: chance that a division pulse is skipped
+ * SWITCH - Left: whole divisions per beat. Right: fractional divisions, which drift
  */
 
 /// TEMPLATE
