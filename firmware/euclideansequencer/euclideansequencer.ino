@@ -74,7 +74,7 @@ while(1)
         offset_stepnumber[B]=offset_stepnumber[B] % seq_length[B];
       
       pulse=false;
-      if(bitRead(euclids[A],offset_stepnumber[A]) == 1) //if there's a pulse
+      if(bitRead(euclids[A],seq_length[A]-1-offset_stepnumber[A]) == 1) //if there's a pulse (euclid() puts the first step in the highest bit)
         pulse=true;
 
       if (random(MAXSTEPLENGTH) < seq_randomness[A] )  //or if there's a randomly generated pulse
@@ -83,7 +83,7 @@ while(1)
         SendPulse(A); //send one
 
       pulse=false;
-      if(bitRead(euclids[B],offset_stepnumber[B]) == 1) //if there's a pulse
+      if(bitRead(euclids[B],seq_length[B]-1-offset_stepnumber[B]) == 1) //if there's a pulse
         pulse = true;
       if (random(MAXSTEPLENGTH) < seq_randomness[B] )
         pulse = !pulse;

@@ -115,6 +115,17 @@ TEST(both_outputs_play_their_rhythm_from_the_first_clock_without_a_toggle_flip) 
   EXPECT_EUCLIDEAN(steps_with_pulses(B, 8), 3);
 }
 
+TEST(at_offset_zero_each_cycle_starts_on_a_pulse) {
+  set_rhythm(3, 8);
+  board.pot[RANDOMNESS] = 0;
+  board.toggle_left = false;
+  fake::boot();
+  fake::at(FIRST_CLOCK / 2, [] { set_rhythm(5, 8); });  // B only: the toggle is right
+  run_clocks(16);
+  EXPECT_EQ(steps_with_pulses(A, 16), "x..x..x.x..x..x.");  // the tresillo
+  EXPECT_EQ(steps_with_pulses(B, 16), "x.xx.xx.x.xx.xx.");  // the cinquillo
+}
+
 TEST(randomness_fully_counter_clockwise_inverts_no_step) {
   board.random_below = [](long) { return 0L; };  // the draw most likely to invert a step
   set_rhythm(3, 8);
